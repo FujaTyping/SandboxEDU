@@ -1,6 +1,14 @@
 import { Palette } from "@/constants/theme";
 import { mockUser } from "@/data/mockData";
-import { Edit3, RefreshCw, User } from "lucide-react-native";
+import { useRouter } from "expo-router";
+import {
+    Edit3,
+    Loader,
+    LogIn,
+    RefreshCw,
+    User,
+    UserPlus,
+} from "lucide-react-native";
 import React from "react";
 import {
     Alert,
@@ -29,6 +37,7 @@ const menuItems = [
 ];
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
 
   return (
@@ -90,6 +99,43 @@ export default function SettingsScreen() {
       >
         <Text style={styles.logoutText}>ออกจากระบบ</Text>
       </TouchableOpacity>
+
+      {/* Dev preview buttons */}
+      <Text style={styles.sectionLabel}>ดูตัวอย่างหน้า</Text>
+      <View style={styles.devCard}>
+        <TouchableOpacity
+          style={styles.devBtn}
+          activeOpacity={0.8}
+          onPress={() => router.push("/login" as any)}
+        >
+          <View style={[styles.devIconWrap, { backgroundColor: "#CCFBF1" }]}>
+            <LogIn size={18} color={Palette.primary} strokeWidth={2} />
+          </View>
+          <Text style={styles.devBtnText}>หน้า Login</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.devBtn}
+          activeOpacity={0.8}
+          onPress={() => router.push("/register" as any)}
+        >
+          <View style={[styles.devIconWrap, { backgroundColor: "#FEF3C7" }]}>
+            <UserPlus size={18} color={Palette.accent} strokeWidth={2} />
+          </View>
+          <Text style={styles.devBtnText}>หน้า Register</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.devBtn}
+          activeOpacity={0.8}
+          onPress={() => router.push("/loading" as any)}
+        >
+          <View style={[styles.devIconWrap, { backgroundColor: "#BFDBFE" }]}>
+            <Loader size={18} color={Palette.info} strokeWidth={2} />
+          </View>
+          <Text style={styles.devBtnText}>หน้า Loading</Text>
+        </TouchableOpacity>
+      </View>
 
       <Text style={styles.versionText}>SandboxEDU v1.0.0</Text>
     </ScrollView>
@@ -231,6 +277,41 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: Palette.danger,
+  },
+  devCard: {
+    flexDirection: "row",
+    marginHorizontal: 20,
+    gap: 10,
+  },
+  devBtn: {
+    flex: 1,
+    backgroundColor: Palette.surface,
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+      },
+      android: { elevation: 3 },
+      default: {},
+    }),
+  },
+  devIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  devBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Palette.text,
   },
   versionText: {
     textAlign: "center",
