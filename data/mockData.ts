@@ -41,7 +41,7 @@ export const mockSubjects: Subject[] = [
   {
     id: "english",
     name: "อังกฤษ",
-    icon: "🍿",
+    icon: "Languages",
     color: "#5EEAD4",
     progress: 50,
     chapters: [
@@ -54,7 +54,7 @@ export const mockSubjects: Subject[] = [
   {
     id: "math",
     name: "คณิต",
-    icon: "📐",
+    icon: "Calculator",
     color: "#FBBF24",
     progress: 70,
     chapters: [
@@ -67,7 +67,7 @@ export const mockSubjects: Subject[] = [
   {
     id: "thai",
     name: "ไทย",
-    icon: "📖",
+    icon: "BookOpen",
     color: "#34D399",
     progress: 60,
     chapters: [
@@ -80,7 +80,7 @@ export const mockSubjects: Subject[] = [
   {
     id: "science",
     name: "วิทย์",
-    icon: "🔬",
+    icon: "Microscope",
     color: "#F87171",
     progress: 40,
     chapters: [
