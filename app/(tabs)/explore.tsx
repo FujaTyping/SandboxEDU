@@ -1,112 +1,171 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { Palette } from "@/constants/theme";
+import { mockSubjects } from "@/data/mockData";
+import { useRouter } from "expo-router";
+import React from "react";
+import {
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Collapsible } from '@/components/ui/collapsible';
-import { ExternalLink } from '@/components/external-link';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Fonts } from '@/constants/theme';
+export default function LearnScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
 
-export default function TabTwoScreen() {
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText
-          type="title"
-          style={{
-            fontFamily: Fonts.rounded,
-          }}>
-          Explore
-        </ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image
-          source={require('@/assets/images/react-logo.png')}
-          style={{ width: 100, height: 100, alignSelf: 'center' }}
-        />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful{' '}
-          <ThemedText type="defaultSemiBold" style={{ fontFamily: Fonts.mono }}>
-            react-native-reanimated
-          </ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={{ paddingBottom: 30, paddingTop: insets.top + 16 }}
+      showsVerticalScrollIndicator={false}
+    >
+      <Text style={styles.title}>บทเรียน</Text>
+      <Text style={styles.subtitle}>เลือกวิชาที่ต้องการเรียน</Text>
+
+      {mockSubjects.map((subject, idx) => (
+        <TouchableOpacity
+          key={subject.id}
+          style={[
+            styles.subjectCard,
+            {
+              backgroundColor:
+                Palette.subjectCards[idx % Palette.subjectCards.length],
+            },
+          ]}
+          activeOpacity={0.85}
+          onPress={() => router.push(`/subject/${subject.id}` as any)}
+        >
+          <View style={styles.cardContent}>
+            <View
+              style={[
+                styles.subjectIcon,
+                { backgroundColor: "rgba(255,255,255,0.15)" },
+              ]}
+            >
+              <Text style={styles.iconText}>{subject.icon}</Text>
+            </View>
+            <View style={styles.cardRight}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.subjectName}>{subject.name}</Text>
+                <Text style={styles.progressPercent}>{subject.progress}%</Text>
+              </View>
+              <View style={styles.progressBarBg}>
+                <View
+                  style={[
+                    styles.progressBarFill,
+                    {
+                      width: `${subject.progress}%`,
+                      backgroundColor: subject.color,
+                    },
+                  ]}
+                />
+              </View>
+            </View>
+            <View style={styles.arrowWrap}>
+              <Text style={styles.arrowIcon}>›</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+      ))}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
+  container: {
+    flex: 1,
+    backgroundColor: Palette.surfaceAlt,
   },
-  titleContainer: {
-    flexDirection: 'row',
-    gap: 8,
+  title: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: Palette.text,
+    paddingHorizontal: 24,
+    letterSpacing: 0.5,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: Palette.textMuted,
+    paddingHorizontal: 24,
+    marginTop: 4,
+    marginBottom: 20,
+  },
+  subjectCard: {
+    marginHorizontal: 20,
+    marginBottom: 14,
+    borderRadius: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+      },
+      android: { elevation: 6 },
+      default: {},
+    }),
+  },
+  cardContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 18,
+  },
+  subjectIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 14,
+  },
+  iconText: {
+    fontSize: 28,
+  },
+  cardRight: {
+    flex: 1,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  subjectName: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  progressPercent: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.7)",
+  },
+  progressBarBg: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    overflow: "hidden",
+  },
+  progressBarFill: {
+    height: "100%",
+    borderRadius: 4,
+  },
+  arrowWrap: {
+    marginLeft: 10,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  arrowIcon: {
+    fontSize: 20,
+    color: "rgba(255,255,255,0.6)",
+    fontWeight: "700",
+    marginTop: -2,
   },
 });
