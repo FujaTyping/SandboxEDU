@@ -1,6 +1,7 @@
 import { Palette } from "@/constants/theme";
 import { mockSubjects } from "@/data/mockData";
 import { useRouter } from "expo-router";
+import * as LucideIcons from "lucide-react-native";
 import React from "react";
 import {
     Platform,
@@ -45,7 +46,12 @@ export default function LearnScreen() {
                 { backgroundColor: "rgba(255,255,255,0.15)" },
               ]}
             >
-              <Text style={styles.iconText}>{subject.icon}</Text>
+              {(() => {
+                const IconComponent = (LucideIcons as any)[subject.icon];
+                return IconComponent ? (
+                  <IconComponent size={28} color="#fff" strokeWidth={2} />
+                ) : null;
+              })()}
             </View>
             <View style={styles.cardRight}>
               <View style={styles.cardHeader}>
@@ -120,9 +126,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 14,
-  },
-  iconText: {
-    fontSize: 28,
   },
   cardRight: {
     flex: 1,

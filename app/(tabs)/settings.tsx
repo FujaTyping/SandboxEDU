@@ -1,5 +1,6 @@
 import { Palette } from "@/constants/theme";
 import { mockUser } from "@/data/mockData";
+import { Edit3, RefreshCw, User } from "lucide-react-native";
 import React from "react";
 import {
     Alert,
@@ -14,13 +15,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const menuItems = [
   {
-    icon: "📝",
+    icon: Edit3,
     label: "แก้ไขบทเรียน",
     desc: "จัดการวิชาและบทเรียน",
     key: "edit",
   },
   {
-    icon: "🔄",
+    icon: RefreshCw,
     label: "ซิงค์ความคืบหน้า",
     desc: "อัพเดทข้อมูลล่าสุด",
     key: "sync",
@@ -41,7 +42,7 @@ export default function SettingsScreen() {
       {/* Profile card */}
       <TouchableOpacity style={styles.profileCard} activeOpacity={0.8}>
         <View style={styles.avatarWrap}>
-          <Text style={styles.avatarEmoji}>🏞️</Text>
+          <User size={28} color={Palette.primary} strokeWidth={2} />
         </View>
         <View style={styles.profileInfo}>
           <Text style={styles.profileName}>{mockUser.name}</Text>
@@ -64,7 +65,7 @@ export default function SettingsScreen() {
               onPress={() => Alert.alert(item.label)}
             >
               <View style={styles.menuIconWrap}>
-                <Text style={styles.menuIcon}>{item.icon}</Text>
+                <item.icon size={20} color={Palette.primary} strokeWidth={2} />
               </View>
               <View style={styles.menuTextWrap}>
                 <Text style={styles.menuLabel}>{item.label}</Text>
@@ -134,9 +135,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 14,
   },
-  avatarEmoji: {
-    fontSize: 28,
-  },
   profileInfo: {
     flex: 1,
   },
@@ -195,9 +193,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 14,
-  },
-  menuIcon: {
-    fontSize: 20,
   },
   menuTextWrap: {
     flex: 1,
