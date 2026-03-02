@@ -1,98 +1,181 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { BarChart } from "@/components/BarChart";
+import { DonutChart } from "@/components/DonutChart";
+import { Palette } from "@/constants/theme";
+import { mockDailyStudy, mockUser } from "@/data/mockData";
+import React from "react";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const insets = useSafeAreaInsets();
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  return (
+    <ScrollView
+      style={[styles.container, { backgroundColor: Palette.surfaceAlt }]}
+      contentContainerStyle={{ paddingBottom: 40 }}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Gradient header */}
+      <View style={[styles.headerWrap, { paddingTop: insets.top }]}>
+        <Svg
+          style={StyleSheet.absoluteFill}
+          width="100%"
+          height="100%"
+          preserveAspectRatio="none"
+        >
+          <Defs>
+            <LinearGradient id="hg" x1="0" y1="0" x2="0.3" y2="1">
+              <Stop offset="0" stopColor={Palette.gradientStart} />
+              <Stop offset="0.5" stopColor={Palette.gradientMid} />
+              <Stop offset="1" stopColor={Palette.gradientEnd} />
+            </LinearGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100%" height="100%" fill="url(#hg)" />
+        </Svg>
+
+        <View style={styles.headerContent}>
+          <View style={styles.avatarRing}>
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarEmoji}>🏞️</Text>
+            </View>
+          </View>
+          <Text style={styles.userName}>{mockUser.name}</Text>
+          <View style={styles.badgeRow}>
+            <View style={styles.badge}>
+              <Text style={styles.badgeValue}>{mockUser.age}</Text>
+              <Text style={styles.badgeLabel}>ปี</Text>
+            </View>
+            <View style={styles.badgeDivider} />
+            <View style={styles.badge}>
+              <Text style={styles.badgeValue}>{mockUser.grade}</Text>
+              <Text style={styles.badgeLabel}>ชั้นเรียน</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+
+      {/* Statistics section */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: Palette.text }]}>
+          สถิติภาพรวม
+        </Text>
+        <View style={styles.chartsRow}>
+          <DonutChart
+            percentage={mockUser.studyProgress}
+            label="เรียนไปแล้ว"
+            color={Palette.donutStudy.color}
+            gradientEnd={Palette.donutStudy.end}
+            backgroundColor={Palette.donutStudy.track}
+          />
+          <DonutChart
+            percentage={mockUser.examScore}
+            label="คะแนนสอบ"
+            color={Palette.donutExam.color}
+            gradientEnd={Palette.donutExam.end}
+            backgroundColor={Palette.donutExam.track}
+          />
+        </View>
+      </View>
+
+      {/* Bar chart section */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: Palette.text }]}>
+          เรียนแต่ละวัน (ชั่วโมง)
+        </Text>
+        <BarChart
+          data={mockDailyStudy}
+          colorStart={Palette.barStart}
+          colorEnd={Palette.barEnd}
+          maxHeight={150}
+        />
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  headerWrap: {
+    overflow: "hidden",
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    minHeight: 280,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  headerContent: {
+    alignItems: "center",
+    paddingVertical: 28,
+  },
+  avatarRing: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    borderWidth: 3,
+    borderColor: "rgba(255,255,255,0.35)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderWidth: 3,
+    borderColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarEmoji: {
+    fontSize: 44,
+  },
+  userName: {
+    marginTop: 14,
+    fontSize: 26,
+    fontWeight: "800",
+    color: "#fff",
+    letterSpacing: 0.5,
+  },
+  badgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 8,
+  },
+  badge: {
+    alignItems: "center",
+    paddingHorizontal: 12,
+  },
+  badgeValue: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  badgeLabel: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.7)",
+    marginTop: 2,
+  },
+  badgeDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: "rgba(255,255,255,0.3)",
+  },
+  section: {
+    marginTop: 24,
+    paddingHorizontal: 20,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    marginBottom: 16,
+  },
+  chartsRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
   },
 });
