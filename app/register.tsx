@@ -1,23 +1,23 @@
 import { Palette } from "@/constants/theme";
 import { useRouter } from "expo-router";
 import {
-    BookOpen,
-    Eye,
-    EyeOff,
-    Lock,
-    Mail,
-    UserPlus,
+  BookOpen,
+  Eye,
+  EyeOff,
+  Lock,
+  Mail,
+  UserPlus,
 } from "lucide-react-native";
 import React, { useState } from "react";
 import {
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
@@ -171,13 +171,13 @@ export default function RegisterScreen() {
         </View>
 
         {/* Back button */}
-        <TouchableOpacity
+        {/* <TouchableOpacity
           style={styles.backBtn}
           onPress={() => router.back()}
           activeOpacity={0.7}
         >
           <Text style={styles.backBtnText}>← กลับ</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </ScrollView>
     </KeyboardAvoidingView>
   );

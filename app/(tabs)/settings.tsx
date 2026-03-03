@@ -2,22 +2,21 @@ import { Palette } from "@/constants/theme";
 import { mockUser } from "@/data/mockData";
 import { useRouter } from "expo-router";
 import {
-    Edit3,
-    Loader,
-    LogIn,
-    RefreshCw,
-    User,
-    UserPlus,
+  Edit3,
+  LogIn,
+  RefreshCw,
+  User,
+  UserPlus
 } from "lucide-react-native";
 import React from "react";
 import {
-    Alert,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -125,7 +124,7 @@ export default function SettingsScreen() {
           <Text style={styles.devBtnText}>หน้า Register</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
+        {/* <TouchableOpacity
           style={styles.devBtn}
           activeOpacity={0.8}
           onPress={() => router.push("/loading" as any)}
@@ -134,7 +133,7 @@ export default function SettingsScreen() {
             <Loader size={18} color={Palette.info} strokeWidth={2} />
           </View>
           <Text style={styles.devBtnText}>หน้า Loading</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </View>
 
       <Text style={styles.versionText}>SandboxEDU v1.0.0</Text>
