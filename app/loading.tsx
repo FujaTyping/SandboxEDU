@@ -1,16 +1,14 @@
 import { Palette } from "@/constants/theme";
-import { useRouter } from "expo-router";
 import { BookOpen } from "lucide-react-native";
 import React, { useEffect, useRef } from "react";
 import {
-  Animated,
-  Easing,
-  Platform,
-  StyleSheet,
-  Text,
-  View
+    Animated,
+    Easing,
+    Platform,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
 function AnimatedDot({ delay }: { delay: number }) {
@@ -50,9 +48,6 @@ function AnimatedDot({ delay }: { delay: number }) {
 }
 
 export default function LoadingScreen() {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -123,15 +118,6 @@ export default function LoadingScreen() {
 
         <Text style={styles.versionText}>v1.0.0</Text>
       </Animated.View>
-
-      {/* Back button */}
-      {/* <TouchableOpacity
-        style={[styles.backBtn, { bottom: insets.bottom + 30 }]}
-        onPress={() => router.back()}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.backBtnText}>← กลับหน้าหลัก</Text>
-      </TouchableOpacity> */}
     </View>
   );
 }

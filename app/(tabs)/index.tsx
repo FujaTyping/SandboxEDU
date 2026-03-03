@@ -2,6 +2,7 @@ import { BarChart } from "@/components/BarChart";
 import { DonutChart } from "@/components/DonutChart";
 import { Palette } from "@/constants/theme";
 import { mockDailyStudy, mockUser } from "@/data/mockData";
+import { User } from "lucide-react-native";
 import React from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -37,7 +38,7 @@ export default function HomeScreen() {
         <View style={styles.headerContent}>
           <View style={styles.avatarRing}>
             <View style={styles.avatarCircle}>
-              <Text style={styles.avatarEmoji}>🏞️</Text>
+              <User size={44} color="rgba(255,255,255,0.9)" strokeWidth={1.5} />
             </View>
           </View>
           <Text style={styles.userName}>{mockUser.name}</Text>
@@ -126,9 +127,6 @@ const styles = StyleSheet.create({
     borderColor: "#fff",
     justifyContent: "center",
     alignItems: "center",
-  },
-  avatarEmoji: {
-    fontSize: 44,
   },
   userName: {
     marginTop: 14,

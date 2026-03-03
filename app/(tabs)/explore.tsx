@@ -40,24 +40,24 @@ export default function LearnScreen() {
             duration: 800,
             useNativeDriver: true,
           }),
-        ])
+        ]),
       ).start();
     }
   }, [loading]);
 
   useEffect(() => {
     fetch(`https://sapindboxedu.siraphop.me/courses/all`)
-      .then(response => {
+      .then((response) => {
         if (!response.ok) {
-          throw new Error('Network response was not ok');
+          throw new Error("Network response was not ok");
         }
         return response.json();
       })
-      .then(data => {
+      .then((data) => {
         setData(data);
         setLoading(false);
       })
-      .catch(error => console.error('Fetch error:', error));
+      .catch((error) => console.error("Fetch error:", error));
   }, []);
 
   return (
@@ -89,7 +89,10 @@ export default function LearnScreen() {
                 // router.push(`/subject/${item.id}`);
               }}
             >
-              <Image source={{ uri: item.thumbnailURL }} style={styles.cardImage} />
+              <Image
+                source={{ uri: item.thumbnailURL }}
+                style={styles.cardImage}
+              />
               <View style={styles.cardContent}>
                 <Text style={styles.cardTitle} numberOfLines={2}>
                   {item.title}
@@ -246,77 +249,5 @@ const styles = StyleSheet.create({
     backgroundColor: "#E2E8F0",
     borderRadius: 20,
     marginBottom: 8,
-  },
-  subjectCard: {
-    marginHorizontal: 20,
-    marginBottom: 14,
-    borderRadius: 20,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 12,
-      },
-      android: { elevation: 6 },
-      default: {},
-    }),
-  },
-  cardContent: {
-    flexDirection: "column",
-    alignItems: "center",
-    padding: 18,
-  },
-  subjectIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 14,
-  },
-  cardRight: {
-    flex: 1,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  subjectName: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#fff",
-  },
-  progressPercent: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "rgba(255,255,255,0.7)",
-  },
-  progressBarBg: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    overflow: "hidden",
-  },
-  progressBarFill: {
-    height: "100%",
-    borderRadius: 4,
-  },
-  arrowWrap: {
-    marginLeft: 10,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  arrowIcon: {
-    fontSize: 20,
-    color: "rgba(255,255,255,0.6)",
-    fontWeight: "700",
-    marginTop: -2,
   },
 });

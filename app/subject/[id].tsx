@@ -1,6 +1,7 @@
 import { Palette } from "@/constants/theme";
 import { mockSubjects } from "@/data/mockData";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { Check, ClipboardList, Lock, Play } from "lucide-react-native";
 import React from "react";
 import {
     Dimensions,
@@ -16,13 +17,24 @@ import Svg, { Line } from "react-native-svg";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 
-const statusConfig: Record<string, { icon: string; bg: string; ring: string }> =
-  {
-    completed: { icon: "✓", bg: Palette.success, ring: Palette.successLight },
-    in_progress: { icon: "▶", bg: Palette.primary, ring: Palette.primaryLight },
-    locked: { icon: "🔒", bg: Palette.textMuted, ring: Palette.disabled },
-  };
-const examConfig = { icon: "📝", bg: Palette.exam, ring: Palette.examLight };
+type IconComponent = React.ComponentType<{
+  size: number;
+  color: string;
+  strokeWidth: number;
+}>;
+const statusConfig: Record<
+  string,
+  { icon: IconComponent; bg: string; ring: string }
+> = {
+  completed: { icon: Check, bg: Palette.success, ring: Palette.successLight },
+  in_progress: { icon: Play, bg: Palette.primary, ring: Palette.primaryLight },
+  locked: { icon: Lock, bg: Palette.textMuted, ring: Palette.disabled },
+};
+const examConfig: { icon: IconComponent; bg: string; ring: string } = {
+  icon: ClipboardList,
+  bg: Palette.exam,
+  ring: Palette.examLight,
+};
 
 export default function SubjectDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -136,11 +148,11 @@ export default function SubjectDetailScreen() {
                       isActive && styles.activeGlow,
                     ]}
                   >
-                    <Text
-                      style={[styles.nodeIcon, isCompleted && { fontSize: 26 }]}
-                    >
-                      {cfg.icon}
-                    </Text>
+                    <cfg.icon
+                      size={isCompleted ? 26 : 22}
+                      color="#fff"
+                      strokeWidth={2}
+                    />
                   </View>
                 </View>
                 <Text
