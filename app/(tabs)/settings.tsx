@@ -65,7 +65,13 @@ export default function SettingsScreen() {
             <TouchableOpacity
               className="flex-row items-center py-4 px-[18px]"
               activeOpacity={0.7}
-              onPress={() => Alert.alert(item.label)}
+              onPress={() => {
+                if (item.key === "edit") {
+                  router.push("/lesson" as any);
+                } else {
+                  Alert.alert(item.label);
+                }
+              }}
             >
               <View className="w-[42px] h-[42px] rounded-xl bg-edge-light justify-center items-center mr-3.5">
                 <item.icon size={20} color={Palette.primary} strokeWidth={2} />
