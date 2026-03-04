@@ -51,6 +51,8 @@ export default function RootLayout() {
           options={{ headerShown: false }}
         />
         <Stack.Screen name="video/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="lessons/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="player/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="exam/[id]" options={{ headerShown: false }} />
         <Stack.Screen
           name="modal"
