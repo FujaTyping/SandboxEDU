@@ -4,60 +4,10 @@
  */
 
 import { Platform } from "react-native";
+import { Palette } from "./colors";
 
-/**
- * Unified App Palette — warm emerald/teal education theme
- */
-export const Palette = {
-  // Primary brand
-  primary: "#0D9488", // teal-600
-  primaryLight: "#5EEAD4", // teal-300
-  primaryDark: "#115E59", // teal-800
-  primaryBg: "#F0FDFA", // teal-50
-
-  // Accent (warm amber for highlights / CTAs)
-  accent: "#F59E0B", // amber-500
-  accentLight: "#FDE68A", // amber-200
-  accentDark: "#B45309", // amber-700
-
-  // Semantic
-  success: "#10B981", // emerald-500
-  successLight: "#A7F3D0", // emerald-200
-  info: "#3B82F6", // blue-500
-  infoLight: "#BFDBFE", // blue-200
-  warning: "#F59E0B",
-  danger: "#EF4444", // red-500
-  dangerLight: "#FEE2E2", // red-100
-  dangerBorder: "#FECACA", // red-200
-  exam: "#8B5CF6", // violet-500
-  examLight: "#DDD6FE", // violet-200
-
-  // Neutrals
-  text: "#1E293B", // slate-800
-  textSecondary: "#64748B", // slate-500
-  textMuted: "#94A3B8", // slate-400
-  surface: "#FFFFFF",
-  surfaceAlt: "#F8FAFC", // slate-50
-  border: "#E2E8F0", // slate-200
-  borderLight: "#F1F5F9", // slate-100
-  disabled: "#CBD5E1", // slate-300
-
-  // Gradient stops for header
-  gradientStart: "#0F4C4C",
-  gradientMid: "#0D7D73",
-  gradientEnd: "#5EEAD4",
-
-  // Subject card backgrounds (bright, modern colors)
-  subjectCards: ["#14B8A6", "#3B82F6", "#8B5CF6", "#F59E0B"],
-
-  // Donut chart pairs  [stroke, gradientEnd, track]
-  donutStudy: { color: "#0D9488", end: "#5EEAD4", track: "#CCFBF1" },
-  donutExam: { color: "#F59E0B", end: "#FBBF24", track: "#FEF3C7" },
-
-  // Bar chart gradient
-  barStart: "#0D9488",
-  barEnd: "#5EEAD4",
-};
+// Re-export Palette from colors.ts as the single source of truth
+export { Palette };
 
 const tintColorLight = Palette.primary;
 const tintColorDark = "#fff";

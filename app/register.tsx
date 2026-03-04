@@ -1,23 +1,22 @@
 import { Palette } from "@/constants/theme";
 import { useRouter } from "expo-router";
 import {
-  BookOpen,
-  Eye,
-  EyeOff,
-  Lock,
-  Mail,
-  UserPlus,
+    BookOpen,
+    Eye,
+    EyeOff,
+    Lock,
+    Mail,
+    UserPlus,
 } from "lucide-react-native";
 import React, { useState } from "react";
 import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
@@ -34,20 +33,31 @@ export default function RegisterScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      className="flex-1 bg-surface-alt"
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 },
-        ]}
+        contentContainerStyle={{
+          flexGrow: 1,
+          paddingTop: insets.top + 20,
+          paddingBottom: insets.bottom + 20,
+        }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
         {/* Header gradient */}
-        <View style={styles.headerBg}>
-          <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
+        <View className="h-[230px] rounded-b-[40px] overflow-hidden">
+          <Svg
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+            }}
+            width="100%"
+            height="100%"
+          >
             <Defs>
               <LinearGradient id="regGrad" x1="0" y1="0" x2="1" y2="1">
                 <Stop offset="0" stopColor={Palette.gradientStart} />
@@ -58,27 +68,37 @@ export default function RegisterScreen() {
             <Rect width="100%" height="100%" fill="url(#regGrad)" />
           </Svg>
 
-          <View style={styles.logoWrap}>
-            <View style={styles.logoCircle}>
+          <View className="flex-1 justify-center items-center">
+            <View className="w-20 h-20 rounded-3xl bg-white/95 justify-center items-center mb-4 shadow-lg">
               <BookOpen size={40} color={Palette.primary} strokeWidth={2} />
             </View>
-            <Text style={styles.appName}>SandboxEDU</Text>
-            <Text style={styles.appTagline}>สร้างบัญชีใหม่เพื่อเริ่มเรียน</Text>
+            <Text className="text-[28px] font-extrabold text-white tracking-wider">
+              SandboxEDU
+            </Text>
+            <Text className="text-sm text-white/80 mt-1">
+              สร้างบัญชีใหม่เพื่อเริ่มเรียน
+            </Text>
           </View>
         </View>
 
         {/* Form card */}
-        <View style={styles.formCard}>
-          <Text style={styles.formTitle}>สมัครสมาชิก</Text>
-          <Text style={styles.formSubtitle}>กรอกข้อมูลเพื่อสร้างบัญชี</Text>
+        <View className="mx-6 -mt-[30px] bg-surface rounded-3xl p-7 shadow-lg">
+          <Text className="text-2xl font-extrabold text-brand-text mb-1">
+            สมัครสมาชิก
+          </Text>
+          <Text className="text-sm text-brand-muted mb-6">
+            กรอกข้อมูลเพื่อสร้างบัญชี
+          </Text>
 
           {/* Name */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>ชื่อ-นามสกุล</Text>
-            <View style={styles.inputWrap}>
+          <View className="mb-4">
+            <Text className="text-[13px] font-semibold text-brand-secondary mb-2">
+              ชื่อ-นามสกุล
+            </Text>
+            <View className="flex-row items-center bg-surface-alt rounded-[14px] border border-edge px-3.5 h-[52px] gap-2.5">
               <UserPlus size={18} color={Palette.textMuted} strokeWidth={2} />
               <TextInput
-                style={styles.input}
+                className="flex-1 text-base text-brand-text"
                 placeholder="สมชาย ใจดี"
                 placeholderTextColor={Palette.disabled}
                 value={name}
@@ -88,12 +108,14 @@ export default function RegisterScreen() {
           </View>
 
           {/* Email */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>อีเมล</Text>
-            <View style={styles.inputWrap}>
+          <View className="mb-4">
+            <Text className="text-[13px] font-semibold text-brand-secondary mb-2">
+              อีเมล
+            </Text>
+            <View className="flex-row items-center bg-surface-alt rounded-[14px] border border-edge px-3.5 h-[52px] gap-2.5">
               <Mail size={18} color={Palette.textMuted} strokeWidth={2} />
               <TextInput
-                style={styles.input}
+                className="flex-1 text-base text-brand-text"
                 placeholder="example@email.com"
                 placeholderTextColor={Palette.disabled}
                 value={email}
@@ -105,12 +127,14 @@ export default function RegisterScreen() {
           </View>
 
           {/* Password */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>รหัสผ่าน</Text>
-            <View style={styles.inputWrap}>
+          <View className="mb-4">
+            <Text className="text-[13px] font-semibold text-brand-secondary mb-2">
+              รหัสผ่าน
+            </Text>
+            <View className="flex-row items-center bg-surface-alt rounded-[14px] border border-edge px-3.5 h-[52px] gap-2.5">
               <Lock size={18} color={Palette.textMuted} strokeWidth={2} />
               <TextInput
-                style={styles.input}
+                className="flex-1 text-base text-brand-text"
                 placeholder="อย่างน้อย 6 ตัวอักษร"
                 placeholderTextColor={Palette.disabled}
                 value={password}
@@ -131,12 +155,14 @@ export default function RegisterScreen() {
           </View>
 
           {/* Confirm Password */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>ยืนยันรหัสผ่าน</Text>
-            <View style={styles.inputWrap}>
+          <View className="mb-4">
+            <Text className="text-[13px] font-semibold text-brand-secondary mb-2">
+              ยืนยันรหัสผ่าน
+            </Text>
+            <View className="flex-row items-center bg-surface-alt rounded-[14px] border border-edge px-3.5 h-[52px] gap-2.5">
               <Lock size={18} color={Palette.textMuted} strokeWidth={2} />
               <TextInput
-                style={styles.input}
+                className="flex-1 text-base text-brand-text"
                 placeholder="กรอกรหัสผ่านอีกครั้ง"
                 placeholderTextColor={Palette.disabled}
                 value={confirmPassword}
@@ -157,181 +183,28 @@ export default function RegisterScreen() {
           </View>
 
           {/* Register button */}
-          <TouchableOpacity style={styles.primaryBtn} activeOpacity={0.85}>
-            <Text style={styles.primaryBtnText}>สมัครสมาชิก</Text>
+          <TouchableOpacity
+            className="bg-primary rounded-2xl h-[54px] justify-center items-center mt-2 mb-5 shadow-md"
+            activeOpacity={0.85}
+          >
+            <Text className="text-[17px] font-bold text-white">
+              สมัครสมาชิก
+            </Text>
           </TouchableOpacity>
 
           {/* Login link */}
-          <View style={styles.switchRow}>
-            <Text style={styles.switchText}>มีบัญชีอยู่แล้ว? </Text>
+          <View className="flex-row justify-center items-center">
+            <Text className="text-sm text-brand-secondary">
+              มีบัญชีอยู่แล้ว?{" "}
+            </Text>
             <TouchableOpacity onPress={() => router.push("/login" as any)}>
-              <Text style={styles.switchLink}>เข้าสู่ระบบ</Text>
+              <Text className="text-sm font-bold text-primary">
+                เข้าสู่ระบบ
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
-
-        {/* Back button */}
-        {/* <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => router.back()}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.backBtnText}>← กลับ</Text>
-        </TouchableOpacity> */}
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Palette.surfaceAlt,
-  },
-  scrollContent: {
-    flexGrow: 1,
-  },
-  headerBg: {
-    height: 230,
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
-    overflow: "hidden",
-  },
-  logoWrap: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
-    backgroundColor: "rgba(255,255,255,0.95)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 12,
-      },
-      android: { elevation: 8 },
-      default: {},
-    }),
-  },
-  appName: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#fff",
-    letterSpacing: 1,
-  },
-  appTagline: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.8)",
-    marginTop: 4,
-  },
-  formCard: {
-    marginHorizontal: 24,
-    marginTop: -30,
-    backgroundColor: Palette.surface,
-    borderRadius: 24,
-    padding: 28,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.1,
-        shadowRadius: 16,
-      },
-      android: { elevation: 8 },
-      default: {},
-    }),
-  },
-  formTitle: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: Palette.text,
-    marginBottom: 4,
-  },
-  formSubtitle: {
-    fontSize: 14,
-    color: Palette.textMuted,
-    marginBottom: 24,
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: Palette.textSecondary,
-    marginBottom: 8,
-  },
-  inputWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Palette.surfaceAlt,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Palette.border,
-    paddingHorizontal: 14,
-    height: 52,
-    gap: 10,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: Palette.text,
-  },
-  primaryBtn: {
-    backgroundColor: Palette.primary,
-    borderRadius: 16,
-    height: 54,
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 8,
-    marginBottom: 20,
-    ...Platform.select({
-      ios: {
-        shadowColor: Palette.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: { elevation: 4 },
-      default: {},
-    }),
-  },
-  primaryBtnText: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#fff",
-  },
-  switchRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  switchText: {
-    fontSize: 14,
-    color: Palette.textSecondary,
-  },
-  switchLink: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: Palette.primary,
-  },
-  backBtn: {
-    alignSelf: "center",
-    marginTop: 24,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-  },
-  backBtnText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: Palette.textMuted,
-  },
-});

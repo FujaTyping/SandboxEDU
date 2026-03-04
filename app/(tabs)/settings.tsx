@@ -1,23 +1,9 @@
 import { Palette } from "@/constants/theme";
 import { mockUser } from "@/data/mockData";
 import { useRouter } from "expo-router";
-import {
-  Edit3,
-  LogIn,
-  RefreshCw,
-  User,
-  UserPlus
-} from "lucide-react-native";
+import { Edit3, LogIn, RefreshCw, User, UserPlus } from "lucide-react-native";
 import React from "react";
-import {
-  Alert,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const menuItems = [
@@ -41,45 +27,66 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView
-      style={styles.container}
+      className="flex-1 bg-surface-alt"
       contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: 40 }}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.pageTitle}>ตั้งค่า</Text>
+      <Text className="text-[28px] font-extrabold text-brand-text px-6 mb-5">
+        ตั้งค่า
+      </Text>
 
       {/* Profile card */}
-      <TouchableOpacity style={styles.profileCard} activeOpacity={0.8}>
-        <View style={styles.avatarWrap}>
+      <TouchableOpacity
+        className="flex-row items-center bg-surface mx-5 rounded-2xl p-[18px] shadow-sm"
+        activeOpacity={0.8}
+      >
+        <View className="w-14 h-14 rounded-[18px] bg-primary-bg justify-center items-center mr-3.5">
           <User size={28} color={Palette.primary} strokeWidth={2} />
         </View>
-        <View style={styles.profileInfo}>
-          <Text style={styles.profileName}>{mockUser.name}</Text>
-          <Text style={styles.profileMeta}>
+        <View className="flex-1">
+          <Text className="text-xl font-bold text-brand-text">
+            {mockUser.name}
+          </Text>
+          <Text className="text-[13px] text-brand-muted mt-0.5">
             {mockUser.grade} · {mockUser.age} ปี
           </Text>
         </View>
-        <Text style={styles.chevron}>›</Text>
+        <Text className="text-[28px] text-brand-disabled font-light">›</Text>
       </TouchableOpacity>
 
       {/* Menu section */}
-      <Text style={styles.sectionLabel}>ทั่วไป</Text>
-      <View style={styles.menuCard}>
+      <Text className="text-[13px] font-bold text-brand-muted px-7 mt-7 mb-2.5 uppercase tracking-wider">
+        ทั่วไป
+      </Text>
+      <View className="bg-surface mx-5 rounded-2xl overflow-hidden shadow-sm">
         {menuItems.map((item, index) => (
           <React.Fragment key={item.key}>
-            {index > 0 && <View style={styles.divider} />}
+            {index > 0 && <View className="h-px bg-edge-light ml-[74px]" />}
             <TouchableOpacity
-              style={styles.menuRow}
+              className="flex-row items-center py-4 px-[18px]"
               activeOpacity={0.7}
-              onPress={() => Alert.alert(item.label)}
+              onPress={() => {
+                if (item.key === "edit") {
+                  router.push("/lesson" as any);
+                } else {
+                  Alert.alert(item.label);
+                }
+              }}
             >
-              <View style={styles.menuIconWrap}>
+              <View className="w-[42px] h-[42px] rounded-xl bg-edge-light justify-center items-center mr-3.5">
                 <item.icon size={20} color={Palette.primary} strokeWidth={2} />
               </View>
-              <View style={styles.menuTextWrap}>
-                <Text style={styles.menuLabel}>{item.label}</Text>
-                <Text style={styles.menuDesc}>{item.desc}</Text>
+              <View className="flex-1">
+                <Text className="text-base font-semibold text-brand-text">
+                  {item.label}
+                </Text>
+                <Text className="text-xs text-brand-muted mt-0.5">
+                  {item.desc}
+                </Text>
               </View>
-              <Text style={styles.menuChevron}>›</Text>
+              <Text className="text-[22px] text-brand-disabled font-light">
+                ›
+              </Text>
             </TouchableOpacity>
           </React.Fragment>
         ))}
@@ -87,7 +94,7 @@ export default function SettingsScreen() {
 
       {/* Logout */}
       <TouchableOpacity
-        style={styles.logoutButton}
+        className="mx-5 mt-7 bg-danger-light rounded-2xl py-4 items-center border border-danger-border"
         activeOpacity={0.8}
         onPress={() =>
           Alert.alert("ออกจากระบบ", "ต้องการออกจากระบบหรือไม่?", [
@@ -96,226 +103,42 @@ export default function SettingsScreen() {
           ])
         }
       >
-        <Text style={styles.logoutText}>ออกจากระบบ</Text>
+        <Text className="text-base font-bold text-danger">ออกจากระบบ</Text>
       </TouchableOpacity>
 
       {/* Dev preview buttons */}
-      <Text style={styles.sectionLabel}>ดูตัวอย่างหน้า</Text>
-      <View style={styles.devCard}>
+      <Text className="text-[13px] font-bold text-brand-muted px-7 mt-7 mb-2.5 uppercase tracking-wider">
+        ดูตัวอย่างหน้า
+      </Text>
+      <View className="flex-row mx-5 gap-2.5">
         <TouchableOpacity
-          style={styles.devBtn}
+          className="flex-1 bg-surface rounded-2xl py-3.5 items-center shadow-sm"
           activeOpacity={0.8}
           onPress={() => router.push("/login" as any)}
         >
-          <View style={[styles.devIconWrap, { backgroundColor: "#CCFBF1" }]}>
+          <View className="w-10 h-10 rounded-xl justify-center items-center mb-2 bg-[#CCFBF1]">
             <LogIn size={18} color={Palette.primary} strokeWidth={2} />
           </View>
-          <Text style={styles.devBtnText}>หน้า Login</Text>
+          <Text className="text-xs font-bold text-brand-text">หน้า Login</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.devBtn}
+          className="flex-1 bg-surface rounded-2xl py-3.5 items-center shadow-sm"
           activeOpacity={0.8}
           onPress={() => router.push("/register" as any)}
         >
-          <View style={[styles.devIconWrap, { backgroundColor: "#FEF3C7" }]}>
+          <View className="w-10 h-10 rounded-xl justify-center items-center mb-2 bg-[#FEF3C7]">
             <UserPlus size={18} color={Palette.accent} strokeWidth={2} />
           </View>
-          <Text style={styles.devBtnText}>หน้า Register</Text>
+          <Text className="text-xs font-bold text-brand-text">
+            หน้า Register
+          </Text>
         </TouchableOpacity>
-
-        {/* <TouchableOpacity
-          style={styles.devBtn}
-          activeOpacity={0.8}
-          onPress={() => router.push("/loading" as any)}
-        >
-          <View style={[styles.devIconWrap, { backgroundColor: "#BFDBFE" }]}>
-            <Loader size={18} color={Palette.info} strokeWidth={2} />
-          </View>
-          <Text style={styles.devBtnText}>หน้า Loading</Text>
-        </TouchableOpacity> */}
       </View>
 
-      <Text style={styles.versionText}>SandboxEDU v1.0.0</Text>
+      <Text className="text-center text-xs text-brand-disabled mt-6">
+        SandboxEDU v1.0.0
+      </Text>
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Palette.surfaceAlt,
-  },
-  pageTitle: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: Palette.text,
-    paddingHorizontal: 24,
-    marginBottom: 20,
-  },
-  profileCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Palette.surface,
-    marginHorizontal: 20,
-    borderRadius: 20,
-    padding: 18,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-      },
-      android: { elevation: 3 },
-      default: {},
-    }),
-  },
-  avatarWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
-    backgroundColor: Palette.primaryBg,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 14,
-  },
-  profileInfo: {
-    flex: 1,
-  },
-  profileName: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: Palette.text,
-  },
-  profileMeta: {
-    fontSize: 13,
-    color: Palette.textMuted,
-    marginTop: 3,
-  },
-  chevron: {
-    fontSize: 28,
-    color: Palette.disabled,
-    fontWeight: "300",
-  },
-  sectionLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: Palette.textMuted,
-    paddingHorizontal: 28,
-    marginTop: 28,
-    marginBottom: 10,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-  },
-  menuCard: {
-    backgroundColor: Palette.surface,
-    marginHorizontal: 20,
-    borderRadius: 20,
-    overflow: "hidden",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-      },
-      android: { elevation: 3 },
-      default: {},
-    }),
-  },
-  menuRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 18,
-  },
-  menuIconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: Palette.borderLight,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 14,
-  },
-  menuTextWrap: {
-    flex: 1,
-  },
-  menuLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: Palette.text,
-  },
-  menuDesc: {
-    fontSize: 12,
-    color: Palette.textMuted,
-    marginTop: 2,
-  },
-  menuChevron: {
-    fontSize: 22,
-    color: Palette.disabled,
-    fontWeight: "300",
-  },
-  divider: {
-    height: 1,
-    backgroundColor: Palette.borderLight,
-    marginLeft: 74,
-  },
-  logoutButton: {
-    marginHorizontal: 20,
-    marginTop: 28,
-    backgroundColor: Palette.dangerLight,
-    borderRadius: 16,
-    paddingVertical: 16,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: Palette.dangerBorder,
-  },
-  logoutText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: Palette.danger,
-  },
-  devCard: {
-    flexDirection: "row",
-    marginHorizontal: 20,
-    gap: 10,
-  },
-  devBtn: {
-    flex: 1,
-    backgroundColor: Palette.surface,
-    borderRadius: 16,
-    paddingVertical: 14,
-    alignItems: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-      },
-      android: { elevation: 3 },
-      default: {},
-    }),
-  },
-  devIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  devBtnText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: Palette.text,
-  },
-  versionText: {
-    textAlign: "center",
-    fontSize: 12,
-    color: Palette.disabled,
-    marginTop: 24,
-  },
-});
