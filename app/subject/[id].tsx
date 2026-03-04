@@ -7,7 +7,6 @@ import {
     Dimensions,
     Platform,
     ScrollView,
-    StyleSheet,
     Text,
     TouchableOpacity,
     View,
@@ -36,6 +35,28 @@ const examConfig: { icon: IconComponent; bg: string; ring: string } = {
   ring: Palette.examLight,
 };
 
+const activeGlowStyle = Platform.select({
+  ios: {
+    shadowColor: Palette.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 14,
+  },
+  android: { elevation: 10 },
+  default: {},
+});
+
+const bottomBarShadow = Platform.select({
+  ios: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+  },
+  android: { elevation: 8 },
+  default: {},
+});
+
 export default function SubjectDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -45,10 +66,11 @@ export default function SubjectDetailScreen() {
 
   if (!subject) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top + 40 }]}>
-        <Text style={{ textAlign: "center", color: Palette.textMuted }}>
-          ไม่พบวิชา
-        </Text>
+      <View
+        className="flex-1 bg-surface-alt"
+        style={{ paddingTop: insets.top + 40 }}
+      >
+        <Text className="text-center text-brand-muted">ไม่พบวิชา</Text>
       </View>
     );
   }
@@ -74,18 +96,22 @@ export default function SubjectDetailScreen() {
   const contentHeight = 70 + subject.chapters.length * nodeSpacing + 40;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View className="flex-1 bg-surface-alt" style={{ paddingTop: insets.top }}>
       {/* Header */}
-      <View style={styles.header}>
+      <View className="flex-row items-center px-5 py-3.5">
         <TouchableOpacity
           onPress={() => router.back()}
-          style={styles.backButton}
+          className="w-[42px] h-[42px] rounded-[14px] bg-edge-light justify-center items-center mr-3.5"
         >
-          <Text style={styles.backIcon}>‹</Text>
+          <Text className="text-[28px] text-brand-text font-semibold -mt-0.5">
+            ‹
+          </Text>
         </TouchableOpacity>
-        <View style={styles.headerTextWrap}>
-          <Text style={styles.subjectTitle}>{subject.name}</Text>
-          <Text style={styles.subjectSubtitle}>
+        <View className="flex-1">
+          <Text className="text-2xl font-extrabold text-brand-text">
+            {subject.name}
+          </Text>
+          <Text className="text-[13px] text-brand-muted mt-0.5">
             {completedCount}/{totalCount} บทเรียน
           </Text>
         </View>
@@ -98,7 +124,13 @@ export default function SubjectDetailScreen() {
         <View style={{ height: contentHeight, position: "relative" }}>
           {/* Connecting lines */}
           <Svg
-            style={StyleSheet.absoluteFill}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+            }}
             width="100%"
             height={contentHeight}
           >
@@ -135,17 +167,18 @@ export default function SubjectDetailScreen() {
             return (
               <View
                 key={chapter.id}
-                style={[
-                  styles.nodeContainer,
-                  { left: pos.x - 44, top: pos.y - 44 },
-                ]}
+                className="absolute w-[88px] items-center"
+                style={{ left: pos.x - 44, top: pos.y - 44 }}
               >
-                <View style={[styles.nodeRing, { borderColor: cfg.ring }]}>
+                <View
+                  className="w-[78px] h-[78px] rounded-full border-[3px] justify-center items-center"
+                  style={{ borderColor: cfg.ring }}
+                >
                   <View
+                    className="w-16 h-16 rounded-full justify-center items-center"
                     style={[
-                      styles.nodeCircle,
                       { backgroundColor: cfg.bg },
-                      isActive && styles.activeGlow,
+                      isActive && activeGlowStyle,
                     ]}
                   >
                     <cfg.icon
@@ -156,7 +189,7 @@ export default function SubjectDetailScreen() {
                   </View>
                 </View>
                 <Text
-                  style={[styles.nodeLabel, isActive && styles.activeLabelText]}
+                  className={`mt-2 text-[13px] font-semibold ${isActive ? "text-primary font-bold" : "text-brand-secondary"}`}
                 >
                   {chapter.title}
                 </Text>
@@ -167,151 +200,28 @@ export default function SubjectDetailScreen() {
       </ScrollView>
 
       {/* Bottom progress bar */}
-      <View style={styles.bottomBar}>
-        <View style={styles.progressInfo}>
-          <Text style={styles.progressLabel}>ความคืบหน้า</Text>
-          <Text style={styles.progressValue}>{progressPercent}%</Text>
+      <View
+        className="px-6 pt-3.5 pb-5 bg-surface rounded-t-3xl"
+        style={bottomBarShadow}
+      >
+        <View className="flex-row justify-between mb-2.5">
+          <Text className="text-sm font-semibold text-brand-secondary">
+            ความคืบหน้า
+          </Text>
+          <Text className="text-sm font-bold text-brand-text">
+            {progressPercent}%
+          </Text>
         </View>
-        <View style={styles.progressBarBg}>
+        <View className="h-3 rounded-md bg-edge overflow-hidden">
           <View
-            style={[
-              styles.progressBarFill,
-              { width: `${progressPercent}%`, backgroundColor: subject.color },
-            ]}
+            className="h-full rounded-md"
+            style={{
+              width: `${progressPercent}%`,
+              backgroundColor: subject.color,
+            }}
           />
         </View>
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Palette.surfaceAlt,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-  },
-  backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: Palette.borderLight,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 14,
-  },
-  backIcon: {
-    fontSize: 28,
-    color: Palette.text,
-    fontWeight: "600",
-    marginTop: -2,
-  },
-  headerTextWrap: {
-    flex: 1,
-  },
-  subjectTitle: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: Palette.text,
-  },
-  subjectSubtitle: {
-    fontSize: 13,
-    color: Palette.textMuted,
-    marginTop: 2,
-  },
-  nodeContainer: {
-    position: "absolute",
-    width: 88,
-    alignItems: "center",
-  },
-  nodeRing: {
-    width: 78,
-    height: 78,
-    borderRadius: 39,
-    borderWidth: 3,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  nodeCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  activeGlow: {
-    ...Platform.select({
-      ios: {
-        shadowColor: Palette.primary,
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.5,
-        shadowRadius: 14,
-      },
-      android: { elevation: 10 },
-      default: {},
-    }),
-  },
-  nodeIcon: {
-    fontSize: 22,
-    color: "#fff",
-    fontWeight: "700",
-  },
-  nodeLabel: {
-    marginTop: 8,
-    fontSize: 13,
-    fontWeight: "600",
-    color: Palette.textSecondary,
-  },
-  activeLabelText: {
-    color: Palette.primary,
-    fontWeight: "700",
-  },
-  bottomBar: {
-    paddingHorizontal: 24,
-    paddingTop: 14,
-    paddingBottom: 20,
-    backgroundColor: Palette.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.06,
-        shadowRadius: 10,
-      },
-      android: { elevation: 8 },
-      default: {},
-    }),
-  },
-  progressInfo: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 10,
-  },
-  progressLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: Palette.textSecondary,
-  },
-  progressValue: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: Palette.text,
-  },
-  progressBarBg: {
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: Palette.border,
-    overflow: "hidden",
-  },
-  progressBarFill: {
-    height: "100%",
-    borderRadius: 6,
-  },
-});

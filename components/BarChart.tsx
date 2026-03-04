@@ -1,6 +1,6 @@
 import { Palette } from "@/constants/theme";
 import React from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import { Platform, View } from "react-native";
 import Svg, {
     Defs,
     LinearGradient,
@@ -16,6 +16,17 @@ interface BarChartProps {
   colorEnd?: string;
   maxHeight?: number;
 }
+
+const cardShadow = Platform.select({
+  ios: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+  },
+  android: { elevation: 3 },
+  default: {},
+});
 
 export function BarChart({
   data,
@@ -37,7 +48,7 @@ export function BarChart({
   const chartH = maxHeight + bottomPad;
 
   return (
-    <View style={styles.card}>
+    <View className="bg-surface rounded-2xl p-4" style={cardShadow}>
       <Svg width="100%" height={chartH} viewBox={`0 0 ${chartW} ${chartH}`}>
         <Defs>
           <LinearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
@@ -107,21 +118,3 @@ export function BarChart({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: Palette.surface,
-    borderRadius: 16,
-    padding: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-      },
-      android: { elevation: 3 },
-      default: {},
-    }),
-  },
-});

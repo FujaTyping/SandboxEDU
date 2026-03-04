@@ -1,6 +1,6 @@
 import { Tabs } from "expo-router";
 import React from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import { Platform, View } from "react-native";
 
 import { HapticTab } from "@/components/haptic-tab";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -62,7 +62,7 @@ export default function TabLayout() {
           title: "หน้าหลัก",
           tabBarIcon: ({ color, focused }) => (
             <View
-              style={[styles.iconWrapper, focused && styles.iconWrapperActive]}
+              className={`w-12 h-12 rounded-2xl justify-center items-center ${focused ? "bg-primary-bg" : "bg-transparent"}`}
             >
               <IconSymbol size={26} name="house.fill" color={color} />
             </View>
@@ -75,7 +75,7 @@ export default function TabLayout() {
           title: "บทเรียน",
           tabBarIcon: ({ color, focused }) => (
             <View
-              style={[styles.iconWrapper, focused && styles.iconWrapperActive]}
+              className={`w-12 h-12 rounded-2xl justify-center items-center ${focused ? "bg-primary-bg" : "bg-transparent"}`}
             >
               <IconSymbol size={26} name="book.fill" color={color} />
             </View>
@@ -88,7 +88,7 @@ export default function TabLayout() {
           title: "ตั้งค่า",
           tabBarIcon: ({ color, focused }) => (
             <View
-              style={[styles.iconWrapper, focused && styles.iconWrapperActive]}
+              className={`w-12 h-12 rounded-2xl justify-center items-center ${focused ? "bg-primary-bg" : "bg-transparent"}`}
             >
               <IconSymbol size={26} name="gearshape.fill" color={color} />
             </View>
@@ -98,17 +98,3 @@ export default function TabLayout() {
     </Tabs>
   );
 }
-
-const styles = StyleSheet.create({
-  iconWrapper: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "transparent",
-  },
-  iconWrapperActive: {
-    backgroundColor: Palette.primaryBg,
-  },
-});

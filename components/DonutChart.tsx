@@ -1,6 +1,6 @@
 import { Palette } from "@/constants/theme";
 import React from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 import Svg, { Circle, Defs, LinearGradient, Stop } from "react-native-svg";
 
 interface DonutChartProps {
@@ -12,6 +12,17 @@ interface DonutChartProps {
   backgroundColor?: string;
   label?: string;
 }
+
+const chartWrapperShadow = Platform.select({
+  ios: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+  },
+  android: { elevation: 6 },
+  default: {},
+});
 
 export function DonutChart({
   percentage,
@@ -28,8 +39,11 @@ export function DonutChart({
   const gradId = `grad-${label}`;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.chartWrapper}>
+    <View className="items-center">
+      <View
+        className="bg-surface rounded-full p-1.5"
+        style={chartWrapperShadow}
+      >
         <View style={{ width: size, height: size, position: "relative" }}>
           <Svg width={size} height={size}>
             <Defs>
@@ -60,53 +74,28 @@ export function DonutChart({
               origin={`${size / 2}, ${size / 2}`}
             />
           </Svg>
-          <View style={[styles.centerLabel, { width: size, height: size }]}>
-            <Text style={styles.percentageText}>{percentage}%</Text>
+          <View
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: size,
+              height: size,
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <Text className="text-[22px] font-extrabold text-brand-text">
+              {percentage}%
+            </Text>
           </View>
         </View>
       </View>
-      {label && <Text style={styles.label}>{label}</Text>}
+      {label && (
+        <Text className="text-[13px] font-bold text-brand-secondary mt-3 tracking-wide uppercase">
+          {label}
+        </Text>
+      )}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    alignItems: "center",
-  },
-  chartWrapper: {
-    backgroundColor: Palette.surface,
-    borderRadius: 100,
-    padding: 6,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-      },
-      android: { elevation: 6 },
-      default: {},
-    }),
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: Palette.textSecondary,
-    marginTop: 12,
-    letterSpacing: 0.3,
-    textTransform: "uppercase",
-  },
-  centerLabel: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  percentageText: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: Palette.text,
-  },
-});

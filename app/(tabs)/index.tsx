@@ -4,7 +4,7 @@ import { Palette } from "@/constants/theme";
 import { mockDailyStudy, mockUser } from "@/data/mockData";
 import { User } from "lucide-react-native";
 import React from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
@@ -13,14 +13,17 @@ export default function HomeScreen() {
 
   return (
     <ScrollView
-      style={[styles.container, { backgroundColor: Palette.surfaceAlt }]}
+      className="flex-1 bg-surface-alt"
       contentContainerStyle={{ paddingBottom: 40 }}
       showsVerticalScrollIndicator={false}
     >
       {/* Gradient header */}
-      <View style={[styles.headerWrap, { paddingTop: insets.top }]}>
+      <View
+        className="overflow-hidden rounded-b-4xl min-h-[280px]"
+        style={{ paddingTop: insets.top }}
+      >
         <Svg
-          style={StyleSheet.absoluteFill}
+          style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
           width="100%"
           height="100%"
           preserveAspectRatio="none"
@@ -35,33 +38,41 @@ export default function HomeScreen() {
           <Rect x="0" y="0" width="100%" height="100%" fill="url(#hg)" />
         </Svg>
 
-        <View style={styles.headerContent}>
-          <View style={styles.avatarRing}>
-            <View style={styles.avatarCircle}>
+        <View className="items-center py-7">
+          <View className="w-[110px] h-[110px] rounded-full border-[3px] border-white/35 justify-center items-center">
+            <View className="w-24 h-24 rounded-full bg-white/15 border-[3px] border-white justify-center items-center">
               <User size={44} color="rgba(255,255,255,0.9)" strokeWidth={1.5} />
             </View>
           </View>
-          <Text style={styles.userName}>{mockUser.name}</Text>
-          <View style={styles.badgeRow}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeValue}>{mockUser.age}</Text>
-              <Text style={styles.badgeLabel}>ปี</Text>
+          <Text className="mt-3.5 text-[26px] font-extrabold text-white tracking-wide">
+            {mockUser.name}
+          </Text>
+          <View className="flex-row items-center mt-3 bg-white/15 rounded-2xl px-6 py-2">
+            <View className="items-center px-3">
+              <Text className="text-lg font-bold text-white">
+                {mockUser.age}
+              </Text>
+              <Text className="text-[11px] text-white/70 mt-0.5">ปี</Text>
             </View>
-            <View style={styles.badgeDivider} />
-            <View style={styles.badge}>
-              <Text style={styles.badgeValue}>{mockUser.grade}</Text>
-              <Text style={styles.badgeLabel}>ชั้นเรียน</Text>
+            <View className="w-px h-7 bg-white/30" />
+            <View className="items-center px-3">
+              <Text className="text-lg font-bold text-white">
+                {mockUser.grade}
+              </Text>
+              <Text className="text-[11px] text-white/70 mt-0.5">
+                ชั้นเรียน
+              </Text>
             </View>
           </View>
         </View>
       </View>
 
       {/* Statistics section */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: Palette.text }]}>
+      <View className="mt-6 px-5">
+        <Text className="text-[17px] font-bold text-brand-text mb-4">
           สถิติภาพรวม
         </Text>
-        <View style={styles.chartsRow}>
+        <View className="flex-row justify-around">
           <DonutChart
             percentage={mockUser.studyProgress}
             label="เรียนไปแล้ว"
@@ -80,8 +91,8 @@ export default function HomeScreen() {
       </View>
 
       {/* Bar chart section */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: Palette.text }]}>
+      <View className="mt-6 px-5">
+        <Text className="text-[17px] font-bold text-brand-text mb-4">
           เรียนแต่ละวัน (ชั่วโมง)
         </Text>
         <BarChart
@@ -94,86 +105,3 @@ export default function HomeScreen() {
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  headerWrap: {
-    overflow: "hidden",
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-    minHeight: 280,
-  },
-  headerContent: {
-    alignItems: "center",
-    paddingVertical: 28,
-  },
-  avatarRing: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    borderWidth: 3,
-    borderColor: "rgba(255,255,255,0.35)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  avatarCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    borderWidth: 3,
-    borderColor: "#fff",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  userName: {
-    marginTop: 14,
-    fontSize: 26,
-    fontWeight: "800",
-    color: "#fff",
-    letterSpacing: 0.5,
-  },
-  badgeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 12,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    borderRadius: 20,
-    paddingHorizontal: 24,
-    paddingVertical: 8,
-  },
-  badge: {
-    alignItems: "center",
-    paddingHorizontal: 12,
-  },
-  badgeValue: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#fff",
-  },
-  badgeLabel: {
-    fontSize: 11,
-    color: "rgba(255,255,255,0.7)",
-    marginTop: 2,
-  },
-  badgeDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: "rgba(255,255,255,0.3)",
-  },
-  section: {
-    marginTop: 24,
-    paddingHorizontal: 20,
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    marginBottom: 16,
-  },
-  chartsRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-  },
-});
