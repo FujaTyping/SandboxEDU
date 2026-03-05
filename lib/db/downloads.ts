@@ -158,6 +158,7 @@ export interface DownloadedDocument {
   subject_name: string;
   grade: string;
   file_path?: string;
+  local_file_uri?: string;
   file_size?: number;
   doc_type?: "pdf" | "docx" | "pptx";
   downloaded_at?: string;
@@ -168,8 +169,9 @@ export async function saveDownloadedDocument(
 ): Promise<void> {
   const db = await openDatabase();
   await db.runAsync(
-    `INSERT OR REPLACE INTO downloaded_documents (doc_id, title, subject_id, subject_name, grade, file_path, file_size, doc_type)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR REPLACE INTO downloaded_documents
+       (doc_id, title, subject_id, subject_name, grade, file_path, local_file_uri, file_size, doc_type)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       doc.doc_id,
       doc.title,
@@ -177,6 +179,7 @@ export async function saveDownloadedDocument(
       doc.subject_name,
       doc.grade,
       doc.file_path ?? null,
+      doc.local_file_uri ?? null,
       doc.file_size ?? 0,
       doc.doc_type ?? "pdf",
     ],
@@ -192,6 +195,16 @@ export async function isDocumentDownloaded(doc_id: string): Promise<boolean> {
   return (result?.count ?? 0) > 0;
 }
 
+export async function getDocumentById(
+  doc_id: string,
+): Promise<DownloadedDocument | null> {
+  const db = await openDatabase();
+  return await db.getFirstAsync<DownloadedDocument>(
+    `SELECT * FROM downloaded_documents WHERE doc_id = ?`,
+    [doc_id],
+  );
+}
+
 export async function getDocumentsBySubject(
   subject_id: string,
   grade: string,
@@ -200,6 +213,27 @@ export async function getDocumentsBySubject(
   return await db.getAllAsync<DownloadedDocument>(
     `SELECT * FROM downloaded_documents WHERE subject_id = ? AND grade = ? ORDER BY downloaded_at DESC`,
     [subject_id, grade],
+  );
+}
+
+export async function deleteDownloadedDocument(doc_id: string): Promise<void> {
+  const db = await openDatabase();
+  await db.runAsync(`DELETE FROM downloaded_documents WHERE doc_id = ?`, [
+    doc_id,
+  ]);
+}
+
+/**
+ * อัปเดต local_file_uri หลังดาวน์โหลดไฟล์จริงลงเครื่อง
+ */
+export async function updateDocumentLocalUri(
+  doc_id: string,
+  local_file_uri: string,
+): Promise<void> {
+  const db = await openDatabase();
+  await db.runAsync(
+    `UPDATE downloaded_documents SET local_file_uri = ? WHERE doc_id = ?`,
+    [local_file_uri, doc_id],
   );
 }
 

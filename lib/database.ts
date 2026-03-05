@@ -137,6 +137,7 @@ export async function initDatabase(): Promise<void> {
       subject_name TEXT NOT NULL,
       grade TEXT NOT NULL,
       file_path TEXT,
+      local_file_uri TEXT,
       file_size INTEGER DEFAULT 0,
       doc_type TEXT DEFAULT 'pdf' CHECK(doc_type IN ('pdf','docx','pptx')),
       downloaded_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -159,6 +160,57 @@ export async function initDatabase(): Promise<void> {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    -- ตาราง User Profile (cached จาก server)
+    CREATE TABLE IF NOT EXISTS user_profile (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      remote_id TEXT UNIQUE,
+      email TEXT NOT NULL,
+      name TEXT NOT NULL,
+      grade TEXT,
+      avatar_url TEXT,
+      auth_token TEXT,
+      token_expires_at DATETIME,
+      is_logged_in INTEGER DEFAULT 0,
+      last_synced_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- ตาราง Offline Exam Results (ผลสอบที่ยังไม่ได้ sync)
+    CREATE TABLE IF NOT EXISTS offline_exam_results (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      exam_id TEXT NOT NULL,
+      subject_id TEXT NOT NULL,
+      grade TEXT NOT NULL,
+      score INTEGER NOT NULL,
+      total_questions INTEGER NOT NULL,
+      correct_count INTEGER NOT NULL,
+      time_spent_sec INTEGER DEFAULT 0,
+      answers_json TEXT,
+      passed INTEGER DEFAULT 0,
+      synced INTEGER DEFAULT 0,
+      taken_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- ตาราง Sync Queue (รายการที่รอ push ขึ้น server)
+    CREATE TABLE IF NOT EXISTS sync_queue (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_type TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      status TEXT DEFAULT 'pending' CHECK(status IN ('pending','syncing','done','failed')),
+      retry_count INTEGER DEFAULT 0,
+      last_error TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      synced_at DATETIME
+    );
+
+    -- ตาราง App Settings (key-value)
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- Index สำหรับ performance
     CREATE INDEX IF NOT EXISTS idx_chapters_subject ON chapters(subject_id);
     CREATE INDEX IF NOT EXISTS idx_lessons_chapter ON lessons(chapter_id);
@@ -169,6 +221,8 @@ export async function initDatabase(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_videos_subject ON downloaded_videos(subject_id);
     CREATE INDEX IF NOT EXISTS idx_videos_grade ON downloaded_videos(grade);
     CREATE INDEX IF NOT EXISTS idx_exam_q_exam ON exam_questions(exam_id);
+    CREATE INDEX IF NOT EXISTS idx_sync_queue_status ON sync_queue(status);
+    CREATE INDEX IF NOT EXISTS idx_offline_exam_synced ON offline_exam_results(synced);
   `);
 
   console.log("✅ Database initialized successfully");
@@ -224,3 +278,4 @@ export async function closeDatabase(): Promise<void> {
 }
 
 export { db };
+

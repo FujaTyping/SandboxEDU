@@ -1,7 +1,8 @@
 import { BarChart } from "@/components/BarChart";
 import { DonutChart } from "@/components/DonutChart";
+import { ThetaChart } from "@/components/ThetaChart";
 import { Palette } from "@/constants/theme";
-import { mockDailyStudy, mockUser } from "@/data/mockData";
+import { mockDailyStudy, mockThetaData, mockUser } from "@/data/mockData";
 import { User } from "lucide-react-native";
 import React from "react";
 import { ScrollView, Text, View } from "react-native";
@@ -101,6 +102,22 @@ export default function HomeScreen() {
           colorEnd={Palette.barEnd}
           maxHeight={150}
         />
+      </View>
+
+      {/* Progress Dashboard - θ ability chart */}
+      <View className="mt-6 px-5">
+        <View className="flex-row items-baseline gap-2 mb-1">
+          <Text className="text-[17px] font-bold text-brand-text">
+            ระดับความสามารถ
+          </Text>
+          <Text className="text-[13px] text-brand-muted font-semibold">
+            (θ)
+          </Text>
+        </View>
+        <Text className="text-xs text-brand-muted mb-4">
+          จุดแข็ง–จุดอ่อนของคุณในแต่ละวิชาและหัวข้อย่อย
+        </Text>
+        <ThetaChart data={mockThetaData} />
       </View>
     </ScrollView>
   );
