@@ -1,7 +1,7 @@
 import {
-  DarkTheme,
-  DefaultTheme,
-  ThemeProvider,
+    DarkTheme,
+    DefaultTheme,
+    ThemeProvider,
 } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -10,54 +10,55 @@ import "react-native-reanimated";
 import "../global.css";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { initDatabase } from "@/lib/database";
-import { seedMockData } from "@/lib/db/seedData";
+import { supabase } from "@/lib/supabase";
+import type { Session } from "@supabase/supabase-js";
 import LoadingScreen from "./loading";
 
 export const unstable_settings = {
-  anchor: "(tabs)",
+  initialRouteName: "login",
 };
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-
-  const [isShowSplash, setIsShowSplash] = useState(true);
+  const [session, setSession] = useState<Session | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    initDatabase()
-      .then(() => seedMockData())
-      .catch(console.error);
-    const timer = setTimeout(() => {
-      setIsShowSplash(false);
-    }, 2500);
-    return () => clearTimeout(timer);
+    // Check auth session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setIsLoading(false);
+    });
+
+    // Listen to auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  if (isShowSplash) {
+  if (isLoading) {
     return <LoadingScreen />;
   }
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="subject/[id]" options={{ headerShown: false }} />
-        <Stack.Screen name="login" options={{ headerShown: false }} />
-        <Stack.Screen name="register" options={{ headerShown: false }} />
-        <Stack.Screen name="lesson" options={{ headerShown: false }} />
-        <Stack.Screen name="editlesson/[id]" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="choosesubject/[id]"
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen name="video/[id]" options={{ headerShown: false }} />
-        <Stack.Screen name="lessons/[id]" options={{ headerShown: false }} />
-        <Stack.Screen name="player/[id]" options={{ headerShown: false }} />
-        <Stack.Screen name="exam/[id]" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="modal"
-          options={{ presentation: "modal", title: "Modal" }}
-        />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="login" />
+        <Stack.Screen name="register" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="subject/[id]" />
+        <Stack.Screen name="lesson" />
+        <Stack.Screen name="editlesson/[id]" />
+        <Stack.Screen name="choosesubject/[id]" />
+        <Stack.Screen name="video/[id]" />
+        <Stack.Screen name="lessons/[id]" />
+        <Stack.Screen name="player/[id]" />
+        <Stack.Screen name="exam/[id]" />
+        <Stack.Screen name="modal" options={{ presentation: "modal" }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

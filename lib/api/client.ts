@@ -3,19 +3,11 @@
  * HTTP client พร้อม auth, error handling, และ offline detection
  */
 
-import { getAuthToken } from "@/lib/db/auth";
+import { getJwt } from "@/lib/auth/token";
 import { apiConfig, getApiUrl } from "./config";
-
-export class ApiError extends Error {
-  constructor(
-    public status: number,
-    public statusText: string,
-    public data?: any,
-  ) {
-    super(`API Error ${status}: ${statusText}`);
-    this.name = "ApiError";
-  }
-}
+import {
+    ApiError
+} from "./errorHandler";
 
 export class NetworkError extends Error {
   constructor(message: string = "No internet connection") {
@@ -49,9 +41,9 @@ async function apiRequest<T = any>(
   }
 
   if (!skipAuthHeader) {
-    const token = await getAuthToken();
+    const token = await getJwt();
     if (token) {
-      headers["authorization"] = token;
+      headers["authorization"] = `Bearer ${token}`;
     } else if (requireAuth) {
       throw new ApiError(401, "Unauthorized", {
         message: "No auth token found",
@@ -60,8 +52,12 @@ async function apiRequest<T = any>(
   }
 
   if (apiConfig.debugApi) {
+    const sanitizedHeaders = { ...headers };
+    if (sanitizedHeaders["authorization"]) {
+      sanitizedHeaders["authorization"] = "[REDACTED]";
+    }
     console.log(`🌐 API ${fetchOptions.method || "GET"} ${endpoint}`, {
-      headers,
+      headers: sanitizedHeaders,
       body: fetchOptions.body,
     });
   }

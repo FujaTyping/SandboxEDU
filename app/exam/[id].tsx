@@ -1,5 +1,5 @@
 import { Palette } from "@/constants/theme";
-import { ExamQuestion, getExamQuestions } from "@/lib/db/downloads";
+import { getJwt } from "@/lib/auth/token";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import {
     ArrowLeft,
@@ -9,9 +9,10 @@ import {
     RotateCcw,
     XCircle,
 } from "lucide-react-native";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
     ActivityIndicator,
+    Alert,
     Platform,
     ScrollView,
     Text,
@@ -21,30 +22,13 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
-const subjectColorMap: Record<string, string> = {
-  math: "#3B82F6",
-  physics: "#10B981",
-  thai: "#EC4899",
-  social: "#F59E0B",
-  english: "#8B5CF6",
-};
-
-const subjectNameMap: Record<string, string> = {
-  math: "คณิตศาสตร์",
-  physics: "วิทยาศาสตร์",
-  thai: "ภาษาไทย",
-  social: "สังคมศึกษา",
-  english: "ภาษาอังกฤษ",
-};
-
-const gradeNameMap: Record<string, string> = {
-  m1: "ม.1",
-  m2: "ม.2",
-  m3: "ม.3",
-  m4: "ม.4",
-  m5: "ม.5",
-  m6: "ม.6",
-};
+interface QuizQuestion {
+  id: string;
+  question: string;
+  choices: string[];
+  answer: string;
+  explanation?: string;
+}
 
 const cardShadow = Platform.select({
   ios: {
@@ -57,47 +41,51 @@ const cardShadow = Platform.select({
   default: {},
 });
 
-type Phase = "intro" | "exam" | "result";
+type Phase = "exam" | "result";
+
+async function getToken(): Promise<string | null> {
+  return getJwt();
+}
 
 export default function ExamScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, quizData, courseTitle, difficulty } = useLocalSearchParams<{
+    id: string;
+    quizData?: string;
+    courseTitle?: string;
+    difficulty?: string;
+  }>();
   const gradientId = useMemo(() => `examGrad-${Date.now()}`, []);
 
-  const [subjectId, grade] = (id || "").split("-");
-  const accentColor = subjectColorMap[subjectId] ?? Palette.primary;
+  const questions: QuizQuestion[] = useMemo(() => {
+    if (!quizData) return [];
+    try {
+      const parsed = JSON.parse(quizData);
+      return Array.isArray(parsed) ? parsed : (parsed.questions ?? []);
+    } catch {
+      return [];
+    }
+  }, [quizData]);
 
-  const [phase, setPhase] = useState<Phase>("intro");
+  const accentColor = Palette.primary;
+  const displayTitle = courseTitle ?? "แบบทดสอบ";
+
+  const [phase, setPhase] = useState<Phase>("exam");
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [showExplanation, setShowExplanation] = useState(false);
-  const [questions, setQuestions] = useState<ExamQuestion[]>([]);
-  const [loadingQ, setLoadingQ] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
-  const examId = `${grade}_${subjectId}_exam_1`;
-
-  useEffect(() => {
-    getExamQuestions(examId)
-      .then((qs) => {
-        setQuestions(qs);
-        setLoadingQ(false);
-      })
-      .catch(() => setLoadingQ(false));
-  }, [examId]);
-
-  const currentQ = questions[currentIndex] as ExamQuestion | undefined;
-  const selectedAnswer = answers[String(currentQ?.id ?? "")];
+  const currentQ = questions[currentIndex];
+  const selectedAnswer = answers[currentQ?.id ?? ""];
   const isAnswered = !!selectedAnswer;
-  const isCorrect = selectedAnswer === currentQ?.answer;
 
-  const score = Object.entries(answers).filter(
-    ([qid, ans]) => questions.find((q) => String(q.id) === qid)?.answer === ans,
-  ).length;
+  const score = questions.filter((q) => answers[q.id] === q.answer).length;
 
   const handleSelectAnswer = (choice: string) => {
     if (isAnswered || !currentQ) return;
-    setAnswers((prev) => ({ ...prev, [String(currentQ.id)]: choice }));
+    setAnswers((prev) => ({ ...prev, [currentQ.id]: choice }));
     setShowExplanation(false);
   };
 
@@ -106,6 +94,30 @@ export default function ExamScreen() {
     if (currentIndex < questions.length - 1) {
       setCurrentIndex((i) => i + 1);
     } else {
+      handleFinish();
+    }
+  };
+
+  const handleFinish = async () => {
+    setSubmitting(true);
+    try {
+      const token = await getToken();
+      const wrong = questions.length - score;
+      if (token && id) {
+        const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
+        await fetch(`${apiBase}/quiz/complete`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ id, correct: score, wrong }),
+        });
+      }
+    } catch (e) {
+      Alert.alert("หมายเหตุ: บันทึกผลไม่สำเร็จ", "แต่ผลการสอบยังคงไว้ให้ผ่าน");
+    } finally {
+      setSubmitting(false);
       setPhase("result");
     }
   };
@@ -117,97 +129,51 @@ export default function ExamScreen() {
     setPhase("exam");
   };
 
-  const scorePercent = Math.round((score / questions.length) * 100);
+  const scorePercent =
+    questions.length > 0 ? Math.round((score / questions.length) * 100) : 0;
   const passed = scorePercent >= 60;
 
-  const renderIntro = () => (
-    <ScrollView
-      className="flex-1 px-5 -mt-2"
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingBottom: 40 }}
-    >
-      {loadingQ ? (
-        <View className="items-center py-20">
-          <ActivityIndicator size="large" color={accentColor} />
-          <Text className="text-brand-muted mt-3">กำลังโหลดข้อสอบ...</Text>
-        </View>
-      ) : questions.length === 0 ? (
-        <View className="items-center py-20 px-8">
-          <View className="w-20 h-20 rounded-full bg-edge-light items-center justify-center mb-4">
-            <ClipboardList
-              size={36}
-              color={Palette.textMuted}
-              strokeWidth={1.5}
-            />
-          </View>
-          <Text className="text-lg font-bold text-brand-text mb-2 text-center">
-            ยังไม่มีข้อสอบ
+  if (questions.length === 0) {
+    return (
+      <>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View className="flex-1 bg-surface-alt items-center justify-center px-8">
+          <ClipboardList size={48} color="#CBD5E1" strokeWidth={1.5} />
+          <Text className="text-lg font-bold text-brand-text mt-4 mb-2 text-center">
+            ไม่มีข้อสอบ
           </Text>
-          <Text className="text-sm text-brand-muted text-center">
-            ดาวน์โหลดบทเรียนเพื่อรับข้อสอบ
+          <Text className="text-sm text-brand-muted text-center mb-6">
+            ไม่ได้รับข้อมูลแบบทดสอบ กรุณากลับและลองใหม่
           </Text>
-        </View>
-      ) : (
-        <View className="bg-surface rounded-2xl p-6 mb-4" style={cardShadow}>
-          <Text className="text-xl font-black text-brand-text mb-2">
-            ข้อสอบ{subjectNameMap[subjectId] ?? subjectId}
-          </Text>
-          <Text className="text-sm text-brand-muted mb-5">
-            {gradeNameMap[grade] ?? grade} · {questions.length} ข้อ
-          </Text>
-
-          <View className="flex-row gap-3 mb-6">
-            <View className="flex-1 bg-surface-alt rounded-xl p-3 items-center">
-              <Text
-                className="text-2xl font-black"
-                style={{ color: accentColor }}
-              >
-                {questions.length}
-              </Text>
-              <Text className="text-xs text-brand-muted mt-1">ข้อทั้งหมด</Text>
-            </View>
-            <View className="flex-1 bg-surface-alt rounded-xl p-3 items-center">
-              <Text className="text-2xl font-black text-success">60%</Text>
-              <Text className="text-xs text-brand-muted mt-1">เกณฑ์ผ่าน</Text>
-            </View>
-            <View className="flex-1 bg-surface-alt rounded-xl p-3 items-center">
-              <Text className="text-2xl font-black text-brand-text">∞</Text>
-              <Text className="text-xs text-brand-muted mt-1">
-                ไม่จำกัดเวลา
-              </Text>
-            </View>
-          </View>
-
           <TouchableOpacity
-            className="rounded-xl py-4 items-center"
+            onPress={() => router.back()}
+            className="px-6 py-3 rounded-xl"
             style={{ backgroundColor: accentColor }}
-            activeOpacity={0.8}
-            onPress={() => setPhase("exam")}
           >
-            <Text className="text-white font-black text-lg">เริ่มทำข้อสอบ</Text>
+            <Text className="text-white font-bold">กลับ</Text>
           </TouchableOpacity>
         </View>
-      )}
-    </ScrollView>
-  );
+      </>
+    );
+  }
 
   const renderExam = () => (
     <ScrollView
-      className="flex-1 px-5 -mt-2"
+      className="flex-1 px-5"
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingBottom: 40 }}
+      contentContainerStyle={{ paddingBottom: 40, paddingTop: 8 }}
     >
       {/* Progress dots */}
       <View className="flex-row gap-1.5 mb-4 justify-center flex-wrap">
         {questions.map((q, i) => (
           <View
-            key={q.id ?? i}
+            key={q.id}
             className="rounded-full"
             style={{
               width: 8,
               height: 8,
-              backgroundColor: answers[String(q.id)]
-                ? answers[String(q.id)] === q.answer
+              backgroundColor: answers[q.id]
+                ? answers[q.id] === q.answer
                   ? "#10B981"
                   : "#EF4444"
                 : i === currentIndex
@@ -220,36 +186,33 @@ export default function ExamScreen() {
 
       {/* Question card */}
       <View className="bg-surface rounded-2xl p-5 mb-4" style={cardShadow}>
-        <View className="flex-row items-center mb-4">
-          <View
-            className="px-2.5 py-1 rounded-lg mr-2"
-            style={{ backgroundColor: accentColor + "20" }}
-          >
-            <Text className="text-xs font-bold" style={{ color: accentColor }}>
-              ข้อ {currentIndex + 1}/{questions.length}
-            </Text>
-          </View>
+        <View
+          className="px-2.5 py-1 rounded-lg self-start mb-4"
+          style={{ backgroundColor: accentColor + "20" }}
+        >
+          <Text className="text-xs font-bold" style={{ color: accentColor }}>
+            ข้อ {currentIndex + 1}/{questions.length}
+          </Text>
         </View>
 
         <Text className="text-base font-bold text-brand-text leading-7 mb-5">
           {currentQ?.question}
         </Text>
 
-        {/* Choices */}
-        {(["A", "B", "C", "D"] as const).map((choice) => {
-          const isSelected = selectedAnswer === choice;
-          const isRightAnswer = currentQ?.answer === choice;
-          let bg = "bg-surface-alt";
+        {/* Choices from array */}
+        {currentQ?.choices.map((choiceText, ci) => {
+          const choiceKey = String(ci);
+          const isSelected = selectedAnswer === choiceKey;
+          const isRightAnswer =
+            currentQ.answer === choiceKey || currentQ.answer === choiceText;
           let borderColor: string = "transparent";
-          let textColor: string = Palette.textSecondary;
+          let textColor: string = Palette.textSecondary ?? "#64748B";
 
           if (isAnswered) {
             if (isRightAnswer) {
-              bg = "bg-surface-alt";
               borderColor = "#10B981";
               textColor = "#10B981";
-            } else if (isSelected && !isRightAnswer) {
-              bg = "bg-surface-alt";
+            } else if (isSelected) {
               borderColor = "#EF4444";
               textColor = "#EF4444";
             }
@@ -258,22 +221,13 @@ export default function ExamScreen() {
             textColor = accentColor;
           }
 
-          const choiceText =
-            choice === "A"
-              ? currentQ?.choice_a
-              : choice === "B"
-                ? currentQ?.choice_b
-                : choice === "C"
-                  ? currentQ?.choice_c
-                  : currentQ?.choice_d;
-
           return (
             <TouchableOpacity
-              key={choice}
-              className={`${bg} rounded-xl p-4 mb-2.5 flex-row items-center`}
+              key={ci}
+              className="bg-surface-alt rounded-xl p-4 mb-2.5 flex-row items-center"
               style={{ borderWidth: 2, borderColor }}
               activeOpacity={isAnswered ? 1 : 0.7}
-              onPress={() => handleSelectAnswer(choice)}
+              onPress={() => handleSelectAnswer(choiceKey)}
             >
               <View
                 className="w-8 h-8 rounded-full items-center justify-center mr-3"
@@ -288,7 +242,9 @@ export default function ExamScreen() {
                           : "#E2E8F0",
                 }}
               >
-                <Text className="text-sm font-black text-white">{choice}</Text>
+                <Text className="text-sm font-black text-white">
+                  {["A", "B", "C", "D"][ci] ?? String(ci + 1)}
+                </Text>
               </View>
               <Text
                 className="flex-1 text-sm font-semibold"
@@ -307,7 +263,7 @@ export default function ExamScreen() {
         })}
 
         {/* Explanation */}
-        {isAnswered && (
+        {isAnswered && currentQ?.explanation && (
           <View className="mt-3">
             {!showExplanation ? (
               <TouchableOpacity
@@ -333,7 +289,7 @@ export default function ExamScreen() {
                   คำอธิบาย
                 </Text>
                 <Text className="text-sm text-brand-secondary leading-5">
-                  {currentQ?.explanation ?? "-"}
+                  {currentQ.explanation}
                 </Text>
               </View>
             )}
@@ -344,14 +300,21 @@ export default function ExamScreen() {
       {isAnswered && (
         <TouchableOpacity
           className="rounded-xl py-4 flex-row items-center justify-center"
-          style={{ backgroundColor: accentColor }}
+          style={{ backgroundColor: submitting ? "#94A3B8" : accentColor }}
           activeOpacity={0.8}
+          disabled={submitting}
           onPress={handleNext}
         >
-          <Text className="text-white font-black text-base mr-2">
-            {currentIndex < questions.length - 1 ? "ข้อถัดไป" : "ดูผลสอบ"}
-          </Text>
-          <ChevronRight size={20} color="white" strokeWidth={2.5} />
+          {submitting ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <>
+              <Text className="text-white font-black text-base mr-2">
+                {currentIndex < questions.length - 1 ? "ข้อถัดไป" : "ส่งคำตอบ"}
+              </Text>
+              <ChevronRight size={20} color="white" strokeWidth={2.5} />
+            </>
+          )}
         </TouchableOpacity>
       )}
     </ScrollView>
@@ -359,11 +322,10 @@ export default function ExamScreen() {
 
   const renderResult = () => (
     <ScrollView
-      className="flex-1 px-5 -mt-2"
+      className="flex-1 px-5"
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingBottom: 40 }}
+      contentContainerStyle={{ paddingBottom: 40, paddingTop: 8 }}
     >
-      {/* Score card */}
       <View
         className="bg-surface rounded-2xl p-6 mb-4 items-center"
         style={cardShadow}
@@ -379,14 +341,15 @@ export default function ExamScreen() {
             {scorePercent}%
           </Text>
         </View>
-
         <Text className="text-2xl font-black text-brand-text mb-1">
           {passed ? "ผ่านการสอบ! 🎉" : "ยังไม่ผ่าน 😢"}
         </Text>
         <Text className="text-sm text-brand-muted mb-6">
           ตอบถูก {score}/{questions.length} ข้อ
+          {difficulty
+            ? ` · ระดับ${difficulty === "easy" ? "ง่าย" : difficulty === "medium" ? "ปานกลาง" : "ยาก"}`
+            : ""}
         </Text>
-
         <View className="flex-row gap-3 w-full">
           <TouchableOpacity
             className="flex-1 bg-surface-alt rounded-xl py-3.5 flex-row items-center justify-center"
@@ -404,27 +367,29 @@ export default function ExamScreen() {
             activeOpacity={0.8}
             onPress={() => router.back()}
           >
-            <Text className="text-white font-bold text-sm">กลับไปเรียน</Text>
+            <Text className="text-white font-bold text-sm">กลับ</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Review answers */}
       <Text className="text-base font-bold text-brand-text mb-3">
         เฉลยข้อสอบ
       </Text>
       {questions.map((q, i) => {
-        const userAnswer = answers[String(q.id)];
-        const correct = userAnswer === q.answer;
-        const choiceMap: Record<string, string> = {
-          A: q.choice_a,
-          B: q.choice_b,
-          C: q.choice_c,
-          D: q.choice_d,
-        };
+        const userAnswer = answers[q.id];
+        const correct =
+          userAnswer === q.answer || q.choices[Number(userAnswer)] === q.answer;
+        const correctText =
+          q.choices.find((c) => c === q.answer) ??
+          q.choices[Number(q.answer)] ??
+          q.answer;
+        const userText =
+          userAnswer !== undefined
+            ? (q.choices[Number(userAnswer)] ?? userAnswer)
+            : "-";
         return (
           <View
-            key={q.id ?? i}
+            key={q.id}
             className="bg-surface rounded-xl p-4 mb-2.5"
             style={cardShadow}
           >
@@ -442,12 +407,10 @@ export default function ExamScreen() {
                 >
                   {q.question}
                 </Text>
-                <Text className="text-xs text-success">
-                  ✓ {choiceMap[q.answer] ?? q.answer}
-                </Text>
+                <Text className="text-xs text-success">✓ {correctText}</Text>
                 {!correct && (
                   <Text className="text-xs text-danger mt-0.5">
-                    ✗ คุณตอบ: {choiceMap[userAnswer] ?? "-"}
+                    ✗ คุณตอบ: {userText}
                   </Text>
                 )}
               </View>
@@ -463,7 +426,7 @@ export default function ExamScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View className="flex-1 bg-surface-alt">
         {/* Gradient Header */}
-        <View className="relative">
+        <View className="relative" style={{ height: 130 + insets.top }}>
           <Svg
             style={{ position: "absolute", top: 0, left: 0, right: 0 }}
             width="100%"
@@ -481,7 +444,6 @@ export default function ExamScreen() {
               fill={`url(#${gradientId})`}
             />
           </Svg>
-
           <View className="px-5 pb-5" style={{ paddingTop: insets.top + 8 }}>
             <View className="flex-row items-center">
               <TouchableOpacity
@@ -492,26 +454,23 @@ export default function ExamScreen() {
                 <ArrowLeft size={20} color="white" strokeWidth={2.5} />
               </TouchableOpacity>
               <View className="flex-1">
-                <Text className="text-xl font-black text-white">
-                  ข้อสอบ{subjectNameMap[subjectId] ?? subjectId}
+                <Text
+                  className="text-xl font-black text-white"
+                  numberOfLines={1}
+                >
+                  {displayTitle}
                 </Text>
                 <Text className="text-sm text-white/80">
-                  {gradeNameMap[grade] ?? grade}
                   {phase === "exam"
-                    ? ` · ข้อ ${currentIndex + 1}/${questions.length}`
-                    : ""}
-                  {phase === "result"
-                    ? ` · ${score}/${questions.length} ถูก`
-                    : ""}
+                    ? `ข้อ ${currentIndex + 1}/${questions.length}`
+                    : `${score}/${questions.length} ถูก`}
                 </Text>
               </View>
             </View>
           </View>
         </View>
 
-        {phase === "intro" && renderIntro()}
-        {phase === "exam" && renderExam()}
-        {phase === "result" && renderResult()}
+        {phase === "exam" ? renderExam() : renderResult()}
       </View>
     </>
   );
