@@ -1,8 +1,12 @@
 import { Palette } from "@/constants/theme";
+import { saveJwt } from "@/lib/auth/token";
+import { supabase } from "@/lib/supabase";
 import { useRouter } from "expo-router";
 import { BookOpen, Eye, EyeOff, Lock, Mail } from "lucide-react-native";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
+    ActivityIndicator,
+    Alert,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -14,12 +18,120 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_MS = 15 * 60 * 1000;
+
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const attemptCount = useRef(0);
+  const lockoutUntil = useRef<number | null>(null);
+
+  async function handleLogin() {
+    if (loading) return; // ป้องกัน multiple requests
+    if (lockoutUntil.current && Date.now() < lockoutUntil.current) {
+      const remaining = Math.ceil((lockoutUntil.current - Date.now()) / 60000);
+      Alert.alert("ถูกล็อค", `กรุณารอ ${remaining} นาที`);
+      return;
+    }
+
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail || !password) {
+      Alert.alert("ข้อมูลไม่ครบ", "กรุณากรอกอีเมลและรหัสผ่าน");
+      return;
+    }
+    if (!EMAIL_REGEX.test(trimmedEmail)) {
+      Alert.alert("อีเมลไม่ถูกต้อง", "กรุณากรอกอีเมลในรูปแบบที่ถูกต้อง");
+      return;
+    }
+
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({
+      email: trimmedEmail,
+      password: password,
+    });
+
+    if (error) {
+      attemptCount.current += 1;
+      if (attemptCount.current >= MAX_ATTEMPTS) {
+        lockoutUntil.current = Date.now() + LOCKOUT_MS;
+        attemptCount.current = 0;
+        Alert.alert(
+          "ถูกล็อคชั่วคราว",
+          "พยายามเข้าสู่ระบบเกินจำนวนครั้งที่กำหนด กรุณารอ 15 นาที",
+        );
+      } else {
+        Alert.alert("เข้าสู่ระบบล้มเหลว", "อีเมลหรือรหัสผ่านไม่ถูกต้อง");
+      }
+      setLoading(false);
+    } else {
+      attemptCount.current = 0;
+      lockoutUntil.current = null;
+
+      let jwtObtained = false;
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+        const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
+
+        if (!accessToken || !apiBase) {
+          throw new Error("ไม่สามารถเชื่อมต่อกับระบบได้");
+        }
+
+        const userRes = await fetch(`${apiBase}/users/get`, {
+          headers: { authorization: `Bearer ${accessToken}` },
+        });
+
+        if (!userRes.ok) {
+          throw new Error("ไม่สามารถดึงข้อมูลผู้ใช้ได้");
+        }
+
+        const userData = await userRes.json();
+        const displayName = userData.displayName ?? userData.name;
+
+        if (!displayName) {
+          throw new Error("ไม่พบข้อมูลผู้ใช้");
+        }
+
+        const revalRes = await fetch(`${apiBase}/users/revalidate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ displayName }),
+        });
+
+        if (!revalRes.ok) {
+          throw new Error("ไม่สามารถยืนยันตัวตนได้");
+        }
+
+        const revalData = await revalRes.json();
+        const jwt = revalData.token ?? revalData.jwt ?? revalData.secret;
+
+        if (!jwt) {
+          throw new Error("ไม่ได้รับ JWT จากระบบ");
+        }
+
+        await saveJwt(jwt);
+        jwtObtained = true;
+      } catch (e) {
+        await supabase.auth.signOut();
+        Alert.alert(
+          "เข้าสู่ระบบไม่สำเร็จ",
+          e instanceof Error ? e.message : "กรุณาลองใหม่อีกครั้ง",
+        );
+        setLoading(false);
+        return;
+      }
+
+      if (jwtObtained) {
+        router.replace("/(tabs)");
+      }
+    }
+  }
 
   return (
     <KeyboardAvoidingView
@@ -29,14 +141,16 @@ export default function LoginScreen() {
       <ScrollView
         contentContainerStyle={{
           flexGrow: 1,
-          paddingTop: insets.top + 20,
           paddingBottom: insets.bottom + 20,
         }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
         {/* Header gradient */}
-        <View className="h-[260px] rounded-b-[40px] overflow-hidden">
+        <View
+          className="rounded-b-[40px] overflow-hidden relative"
+          style={{ height: 260 + insets.top }}
+        >
           <Svg
             style={{
               position: "absolute",
@@ -58,7 +172,10 @@ export default function LoginScreen() {
             <Rect width="100%" height="100%" fill="url(#loginGrad)" />
           </Svg>
 
-          <View className="flex-1 justify-center items-center">
+          <View
+            className="absolute inset-0 justify-center items-center"
+            style={{ paddingTop: insets.top }}
+          >
             <View className="w-20 h-20 rounded-3xl bg-white/95 justify-center items-center mb-4 shadow-lg">
               <BookOpen size={40} color={Palette.primary} strokeWidth={2} />
             </View>
@@ -138,10 +255,17 @@ export default function LoginScreen() {
           <TouchableOpacity
             className="bg-primary rounded-2xl h-[54px] justify-center items-center mb-5 shadow-md"
             activeOpacity={0.85}
+            onPress={handleLogin}
+            disabled={loading}
+            style={{ opacity: loading ? 0.6 : 1 }}
           >
-            <Text className="text-[17px] font-bold text-white">
-              เข้าสู่ระบบ
-            </Text>
+            {loading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text className="text-[17px] font-bold text-white">
+                เข้าสู่ระบบ
+              </Text>
+            )}
           </TouchableOpacity>
 
           {/* Register link */}

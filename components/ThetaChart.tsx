@@ -1,5 +1,4 @@
 import { Palette } from "@/constants/theme";
-import { ThetaSubject } from "@/data/mockData";
 import React, { useState } from "react";
 import {
     Platform,
@@ -18,6 +17,18 @@ import Svg, {
     Line as SvgLine,
     Text as SvgText,
 } from "react-native-svg";
+
+export interface ThetaTopic {
+  topic: string;
+  theta: number;
+}
+
+export interface ThetaSubject {
+  subject: string;
+  subjectId: string;
+  color: string;
+  topics: ThetaTopic[];
+}
 
 interface ThetaChartProps {
   data: ThetaSubject[];

@@ -1,237 +1,532 @@
+import { CourseListSkeleton } from "@/components/LoadingSkeleton";
 import { Palette } from "@/constants/theme";
-import { DownloadedVideo, getAllDownloadedVideos } from "@/lib/db/downloads";
-import { useFocusEffect } from "@react-navigation/native";
+import { getJwt } from "@/lib/auth/token";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { Download } from "lucide-react-native";
-import React, { useCallback, useState } from "react";
 import {
-  Dimensions,
-  Platform,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View,
+    BookOpen,
+    CheckCircle,
+    ClipboardList,
+    RefreshCw,
+    Zap,
+} from "lucide-react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+    ActivityIndicator,
+    Platform,
+    RefreshControl,
+    ScrollView,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const SCREEN_W = Dimensions.get("window").width;
+interface ApiCourse {
+  id: string;
+  title: string;
+  subject: string;
+  class: number;
+  by?: string;
+  thumbnailURL?: string;
+}
 
-const gradeNameMap: Record<string, string> = {
-  m1: "ม.1",
-  m2: "ม.2",
-  m3: "ม.3",
-  m4: "ม.4",
-  m5: "ม.5",
-  m6: "ม.6",
+const SUBJECT_COLOR: Record<string, string> = {
+  คณิตศาสตร์: "#3B82F6",
+  ฟิสิกส์: "#10B981",
+  เคมี: "#F59E0B",
+  ชีววิทยา: "#22C55E",
+  ภาษาไทย: "#EC4899",
+  สังคม: "#8B5CF6",
+  ภาษาอังกฤษ: "#6366F1",
 };
 
-const subjectColorMap: Record<string, string> = {
-  math: "#3B82F6",
-  physics: "#10B981",
-  thai: "#EC4899",
-  social: "#F59E0B",
-  english: "#8B5CF6",
+const SUBJECT_ICON: Record<string, string> = {
+  คณิตศาสตร์: "📐",
+  ฟิสิกส์: "⚗️",
+  เคมี: "🧪",
+  ชีววิทยา: "🌿",
+  ภาษาไทย: "📖",
+  สังคม: "🌏",
+  ภาษาอังกฤษ: "💬",
 };
+
+const DIFFICULTY_LABELS = [
+  { key: "easy", label: "ง่าย", color: "#22C55E" },
+  { key: "medium", label: "ปานกลาง", color: "#F59E0B" },
+  { key: "hard", label: "ยาก", color: "#EF4444" },
+] as const;
 
 const cardShadow = Platform.select({
   ios: {
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.07,
     shadowRadius: 8,
   },
-  android: { elevation: 4 },
+  android: { elevation: 3 },
   default: {},
 });
 
-interface GroupedSubject {
-  subject_id: string;
-  subject_name: string;
-  grade: string;
-  videos: DownloadedVideo[];
-  avg_progress: number;
+async function getAuthHeader(): Promise<string | null> {
+  const jwt = await getJwt();
+  return jwt ? `Bearer ${jwt}` : null;
 }
 
-interface GroupedGrade {
-  grade: string;
-  subjects: GroupedSubject[];
-}
-
-function groupVideos(videos: DownloadedVideo[]): GroupedGrade[] {
-  const gradeMap: Record<string, Record<string, DownloadedVideo[]>> = {};
-  for (const v of videos) {
-    if (!gradeMap[v.grade]) gradeMap[v.grade] = {};
-    if (!gradeMap[v.grade][v.subject_id]) gradeMap[v.grade][v.subject_id] = [];
-    gradeMap[v.grade][v.subject_id].push(v);
-  }
-  return Object.entries(gradeMap)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([grade, subjectMap]) => ({
-      grade,
-      subjects: Object.entries(subjectMap).map(([subject_id, vids]) => ({
-        subject_id,
-        subject_name: vids[0].subject_name,
-        grade,
-        videos: vids,
-        avg_progress: Math.round(
-          vids.reduce((s, v) => s + (v.watch_progress ?? 0), 0) / vids.length,
-        ),
-      })),
-    }));
-}
-
-export default function LearnScreen() {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const [groups, setGroups] = useState<GroupedGrade[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useFocusEffect(
-    useCallback(() => {
-      getAllDownloadedVideos()
-        .then((videos) => {
-          setGroups(groupVideos(videos));
-          setLoading(false);
-        })
-        .catch(() => setLoading(false));
-    }, []),
-  );
-
-  const CARD_GAP = 12;
-  const CARD_W = (SCREEN_W - 48 - CARD_GAP) / 2;
-
-  const subjectIcons: Record<string, string> = {
-    math: "📐",
-    physics: "⚗️",
-    thai: "📖",
-    social: "🌏",
-    english: "💬",
-  };
-
-  const renderSubjectCard = (subject: GroupedSubject) => {
-    const color = subjectColorMap[subject.subject_id] ?? Palette.primary;
-    const completed = subject.videos.filter(
-      (v) => (v.watch_progress ?? 0) >= 90,
-    ).length;
-    return (
-      <TouchableOpacity
-        key={`${subject.grade}-${subject.subject_id}`}
-        style={[{ width: CARD_W }, cardShadow]}
-        className="bg-surface rounded-2xl mb-3 overflow-hidden"
-        activeOpacity={0.82}
-        onPress={() =>
-          router.push(`/lessons/${subject.subject_id}-${subject.grade}` as any)
-        }
-      >
-        {/* Color header */}
-        <View
-          className="h-24 items-center justify-center"
-          style={{ backgroundColor: color + "18" }}
-        >
-          <Text style={{ fontSize: 36 }}>
-            {subjectIcons[subject.subject_id] ?? "📚"}
-          </Text>
+function CourseCard({
+  course,
+  onPress,
+}: {
+  course: ApiCourse;
+  onPress: () => void;
+}) {
+  const color = SUBJECT_COLOR[course.subject] ?? Palette.primary;
+  const icon = SUBJECT_ICON[course.subject] ?? "📚";
+  return (
+    <TouchableOpacity
+      style={cardShadow}
+      className="bg-surface rounded-2xl overflow-hidden"
+      activeOpacity={0.75}
+      onPress={onPress}
+    >
+      <View className="flex-row">
+        {course.thumbnailURL ? (
+          <Image
+            source={{ uri: course.thumbnailURL }}
+            style={{ width: 100, height: 100 }}
+            contentFit="cover"
+          />
+        ) : (
           <View
-            className="absolute top-2 right-2 px-2 py-0.5 rounded-full"
-            style={{ backgroundColor: color }}
+            style={{
+              width: 100,
+              height: 100,
+              backgroundColor: color + "18",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
           >
-            <Text className="text-white text-[10px] font-black">
-              {gradeNameMap[subject.grade] ?? subject.grade}
+            <Text style={{ fontSize: 36 }}>{icon}</Text>
+          </View>
+        )}
+        <View className="flex-1 p-3">
+          <View className="flex-row items-center mb-1" style={{ gap: 6 }}>
+            <View
+              className="px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: color + "20" }}
+            >
+              <Text className="text-[10px] font-bold" style={{ color }}>
+                {course.subject}
+              </Text>
+            </View>
+            <Text className="text-[10px] text-brand-muted">
+              ม.{course.class}
             </Text>
           </View>
-        </View>
-        <View className="p-3">
           <Text
-            className="text-sm font-black text-brand-text"
-            numberOfLines={1}
+            className="text-sm font-bold text-brand-text leading-5"
+            numberOfLines={2}
           >
-            {subject.subject_name}
+            {course.title}
           </Text>
-          <Text className="text-xs text-brand-muted mt-0.5">
-            {subject.videos.length} บท · {completed}/{subject.videos.length}{" "}
-            จบแล้ว
-          </Text>
-          {/* progress bar */}
-          <View className="h-1.5 rounded-full bg-edge mt-2 overflow-hidden">
+          {course.by && (
+            <Text className="text-[10px] text-brand-disabled mt-1">
+              โดย {course.by}
+            </Text>
+          )}
+          <View className="flex-row items-center mt-2" style={{ gap: 8 }}>
             <View
-              className="h-full rounded-full"
-              style={{
-                width: `${subject.avg_progress}%`,
-                backgroundColor: color,
-              }}
-            />
+              className="flex-row items-center px-2 py-1 rounded-lg"
+              style={{ backgroundColor: color + "15", gap: 4 }}
+            >
+              <BookOpen size={10} color={color} />
+              <Text className="text-[10px] font-bold" style={{ color }}>
+                ดูคอร์ส
+              </Text>
+            </View>
+            <View
+              className="flex-row items-center px-2 py-1 rounded-lg"
+              style={{ backgroundColor: "#8B5CF620", gap: 4 }}
+            >
+              <ClipboardList size={10} color="#8B5CF6" />
+              <Text
+                className="text-[10px] font-bold"
+                style={{ color: "#8B5CF6" }}
+              >
+                ทำแบบทดสอบ
+              </Text>
+            </View>
           </View>
-          <Text className="text-[10px] text-brand-muted mt-1">
-            {subject.avg_progress}%
-          </Text>
         </View>
-      </TouchableOpacity>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function CoursesTab({
+  courses,
+  loading,
+  error,
+  onRefresh,
+  onCoursePress,
+}: {
+  courses: ApiCourse[];
+  loading: boolean;
+  error: string | null;
+  onRefresh: () => void;
+  onCoursePress: (course: ApiCourse) => void;
+}) {
+  if (loading) {
+    return <CourseListSkeleton count={5} />;
+  }
+  if (error) {
+    return (
+      <View className="mx-6 bg-surface rounded-2xl p-6 items-center">
+        <Text className="text-2xl mb-2">⚠️</Text>
+        <Text className="text-sm font-semibold text-brand-text mb-1">
+          โหลดข้อมูลไม่ได้
+        </Text>
+        <Text className="text-xs text-brand-muted text-center mb-4">
+          {error}
+        </Text>
+        <TouchableOpacity
+          onPress={onRefresh}
+          className="px-5 py-2 rounded-full"
+          style={{ backgroundColor: Palette.primary }}
+        >
+          <Text className="text-white text-xs font-bold">ลองใหม่</Text>
+        </TouchableOpacity>
+      </View>
     );
+  }
+  if (courses.length === 0) {
+    return (
+      <View className="items-center py-24">
+        <BookOpen size={40} color="#CBD5E1" strokeWidth={1.5} />
+        <Text className="text-brand-muted text-sm mt-3">ไม่พบบทเรียน</Text>
+      </View>
+    );
+  }
+  return (
+    <View className="px-6" style={{ gap: 12 }}>
+      {courses.map((course) => (
+        <CourseCard
+          key={course.id}
+          course={course}
+          onPress={() => onCoursePress(course)}
+        />
+      ))}
+    </View>
+  );
+}
+
+function QuizTab({ courses }: { courses: ApiCourse[] }) {
+  const router = useRouter();
+  const [selectedCourse, setSelectedCourse] = useState<ApiCourse | null>(null);
+  const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">(
+    "medium",
+  );
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleStart = async () => {
+    if (!selectedCourse) return;
+    setStarting(true);
+    setError(null);
+    try {
+      const token = await getAuthHeader();
+      if (!token) {
+        setError("กรุณาเข้าสู่ระบบก่อนทำแบบทดสอบ");
+        return;
+      }
+      const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+      const res = await fetch(`${apiBaseUrl}/quiz/generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          authorization: token,
+        },
+        body: JSON.stringify({ id: selectedCourse.id, difficulty }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as any).message ?? `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      router.push({
+        pathname: "/exam/[id]",
+        params: {
+          id: selectedCourse.id,
+          quizData: JSON.stringify(data),
+          courseTitle: selectedCourse.title,
+          difficulty,
+        },
+      } as any);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "เริ่มแบบทดสอบไม่ได้");
+    } finally {
+      setStarting(false);
+    }
   };
 
-  return (
-    <ScrollView
-      className="flex-1 bg-surface-alt"
-      contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: 30 }}
-      showsVerticalScrollIndicator={false}
-    >
-      <Text className="text-[28px] font-extrabold text-brand-text px-6 tracking-wide">
-        บทเรียนของฉัน
-      </Text>
-      <Text className="text-sm text-brand-muted px-6 mt-1 mb-5">
-        คลิปที่ดาวน์โหลดไว้สำหรับเรียน
-      </Text>
+  if (courses.length === 0) {
+    return (
+      <View className="items-center py-24 px-6">
+        <ClipboardList size={40} color="#CBD5E1" strokeWidth={1.5} />
+        <Text className="text-brand-muted text-sm mt-3 text-center">
+          โหลดคอร์สก่อนเพื่อเริ่มทำแบบทดสอบ
+        </Text>
+      </View>
+    );
+  }
 
-      {loading ? (
-        <View className="px-6">
-          {[1, 2, 3].map((i) => (
-            <View
-              key={i}
-              className="h-[220px] rounded-2xl bg-edge-light mb-4"
-            />
+  return (
+    <View className="px-6" style={{ gap: 16 }}>
+      {/* Step 1: เลือกคอร์ส */}
+      <View>
+        <Text className="text-sm font-extrabold text-brand-text mb-3">
+          1. เลือกบทเรียน
+        </Text>
+        <View style={{ gap: 8 }}>
+          {courses.map((c) => {
+            const color = SUBJECT_COLOR[c.subject] ?? Palette.primary;
+            const selected = selectedCourse?.id === c.id;
+            return (
+              <TouchableOpacity
+                key={c.id}
+                onPress={() => setSelectedCourse(c)}
+                className="flex-row items-center p-3 rounded-xl"
+                style={{
+                  backgroundColor: selected ? color + "18" : "#F8FAFC",
+                  borderWidth: 1.5,
+                  borderColor: selected ? color : "#E2E8F0",
+                }}
+                activeOpacity={0.7}
+              >
+                {selected && (
+                  <CheckCircle
+                    size={16}
+                    color={color}
+                    style={{ marginRight: 8 }}
+                  />
+                )}
+                <View className="flex-1">
+                  <Text
+                    className="text-sm font-semibold text-brand-text"
+                    numberOfLines={1}
+                  >
+                    {c.title}
+                  </Text>
+                  <Text className="text-[10px] text-brand-muted mt-0.5">
+                    {c.subject} · ม.{c.class}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* Step 2: เลือกระดับ */}
+      <View>
+        <Text className="text-sm font-extrabold text-brand-text mb-3">
+          2. ระดับความยาก
+        </Text>
+        <View className="flex-row" style={{ gap: 8 }}>
+          {DIFFICULTY_LABELS.map((d) => (
+            <TouchableOpacity
+              key={d.key}
+              onPress={() => setDifficulty(d.key)}
+              className="flex-1 py-3 rounded-xl items-center"
+              style={{
+                backgroundColor:
+                  difficulty === d.key ? d.color + "20" : "#F8FAFC",
+                borderWidth: 1.5,
+                borderColor: difficulty === d.key ? d.color : "#E2E8F0",
+              }}
+              activeOpacity={0.7}
+            >
+              <Text
+                className="text-xs font-bold"
+                style={{
+                  color: difficulty === d.key ? d.color : "#64748B",
+                }}
+              >
+                {d.label}
+              </Text>
+            </TouchableOpacity>
           ))}
         </View>
-      ) : groups.length === 0 ? (
-        <View className="items-center justify-center px-8 py-24">
-          <View className="w-24 h-24 rounded-full bg-primary-bg items-center justify-center mb-5">
-            <Download size={40} color={Palette.primary} strokeWidth={1.5} />
-          </View>
-          <Text className="text-xl font-black text-brand-text mb-2 text-center">
-            ยังไม่มีบทเรียน
-          </Text>
-          <Text className="text-sm text-brand-muted text-center leading-6">
-            {"ไปที่ตั้งค่า → แก้ไขบทเรียน\nเพื่อดาวน์โหลดเนื้อหา"}
-          </Text>
+      </View>
+
+      {/* Error */}
+      {error && (
+        <View className="bg-red-50 rounded-xl p-3">
+          <Text className="text-xs text-red-500">{error}</Text>
         </View>
-      ) : (
-        groups.map((gradeGroup) => (
-          <View key={gradeGroup.grade} className="px-6 mb-6">
-            {/* Grade header */}
-            <View className="flex-row items-center mb-3">
-              <View className="w-9 h-9 rounded-full bg-primary items-center justify-center mr-2.5">
-                <Text className="text-white text-xs font-black">
-                  {gradeNameMap[gradeGroup.grade] ?? gradeGroup.grade}
-                </Text>
-              </View>
-              <Text className="text-lg font-extrabold text-brand-text">
-                {gradeNameMap[gradeGroup.grade] ?? gradeGroup.grade}
-              </Text>
-              <View className="flex-1 h-px bg-edge ml-3" />
-              <Text className="text-xs text-brand-muted ml-2">
-                {gradeGroup.subjects.reduce(
-                  (s, sub) => s + sub.videos.length,
-                  0,
-                )}{" "}
-                บท
-              </Text>
-            </View>
-            {/* Subject cards grid */}
-            <View className="flex-row flex-wrap" style={{ gap: CARD_GAP }}>
-              {gradeGroup.subjects.map(renderSubjectCard)}
-            </View>
-          </View>
-        ))
       )}
-    </ScrollView>
+
+      {/* Start button */}
+      <TouchableOpacity
+        onPress={handleStart}
+        disabled={!selectedCourse || starting}
+        className="py-4 rounded-2xl items-center"
+        style={{
+          backgroundColor:
+            selectedCourse && !starting ? Palette.primary : "#E2E8F0",
+        }}
+        activeOpacity={0.8}
+      >
+        {starting ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : (
+          <View className="flex-row items-center" style={{ gap: 8 }}>
+            <Zap size={16} color={selectedCourse ? "#fff" : "#94A3B8"} />
+            <Text
+              className="text-base font-extrabold"
+              style={{ color: selectedCourse ? "#fff" : "#94A3B8" }}
+            >
+              เริ่มทำแบบทดสอบ
+            </Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+export default function ExploreScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<"courses" | "quiz">("courses");
+  const [courses, setCourses] = useState<ApiCourse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchCourses = useCallback(async (isRefresh = false) => {
+    const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+    if (!apiBaseUrl) {
+      setError("ไม่พบ API URL");
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+    try {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      setError(null);
+      const res = await fetch(`${apiBaseUrl}/courses/all`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const list: ApiCourse[] = Array.isArray(data)
+        ? data
+        : (data.courses ?? []);
+      setCourses(list);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "โหลดข้อมูลไม่ได้");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  const handleRefresh = useCallback(() => {
+    fetchCourses(true);
+  }, [fetchCourses]);
+
+  useEffect(() => {
+    fetchCourses();
+  }, [fetchCourses]);
+
+  return (
+    <View className="flex-1 bg-surface-alt">
+      {/* Header */}
+      <View className="px-6 pb-3" style={{ paddingTop: insets.top + 16 }}>
+        <View className="flex-row items-center justify-between mb-4">
+          <Text className="text-[28px] font-extrabold text-brand-text tracking-wide">
+            สำรวจ
+          </Text>
+          <TouchableOpacity
+            onPress={fetchCourses}
+            className="p-2"
+            activeOpacity={0.7}
+          >
+            <RefreshCw size={18} color={Palette.primary} strokeWidth={2} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Tabs */}
+        <View
+          className="flex-row bg-surface rounded-2xl p-1"
+          style={{ gap: 4 }}
+        >
+          {[
+            { key: "courses", label: "บทเรียน", icon: BookOpen },
+            { key: "quiz", label: "แบบทดสอบ", icon: ClipboardList },
+          ].map((tab) => {
+            const active = activeTab === tab.key;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                onPress={() => setActiveTab(tab.key as any)}
+                className="flex-1 flex-row items-center justify-center py-2.5 rounded-xl"
+                style={{
+                  backgroundColor: active ? Palette.primary : "transparent",
+                  gap: 6,
+                }}
+                activeOpacity={0.8}
+              >
+                <tab.icon
+                  size={14}
+                  color={active ? "#fff" : "#64748B"}
+                  strokeWidth={2}
+                />
+                <Text
+                  className="text-xs font-bold"
+                  style={{ color: active ? "#fff" : "#64748B" }}
+                >
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* Content */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 40, paddingTop: 8 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={Palette.primary}
+            colors={[Palette.primary]}
+          />
+        }
+      >
+        {activeTab === "courses" ? (
+          <CoursesTab
+            courses={courses}
+            loading={loading}
+            error={error}
+            onRefresh={fetchCourses}
+            onCoursePress={(course) =>
+              router.push({
+                pathname: "/video/[id]",
+                params: { id: course.id, courseTitle: course.title },
+              } as any)
+            }
+          />
+        ) : (
+          <QuizTab courses={courses} />
+        )}
+      </ScrollView>
+    </View>
   );
 }
