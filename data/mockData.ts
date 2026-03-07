@@ -92,6 +92,81 @@ export const mockSubjects: Subject[] = [
   },
 ];
 
+export interface ThetaTopic {
+  topic: string;
+  theta: number; // IRT ability estimate, range roughly -3 to +3
+}
+
+export interface ThetaSubject {
+  subject: string;
+  subjectId: string;
+  color: string;
+  topics: ThetaTopic[];
+}
+
+export const mockThetaData: ThetaSubject[] = [
+  {
+    subject: "คณิตศาสตร์",
+    subjectId: "math",
+    color: "#3B82F6",
+    topics: [
+      { topic: "พีชคณิต", theta: 1.4 },
+      { topic: "เรขาคณิต", theta: 0.6 },
+      { topic: "สถิติ", theta: -0.3 },
+      { topic: "ตรีโกณ", theta: 1.1 },
+      { topic: "แคลคูลัส", theta: -1.2 },
+    ],
+  },
+  {
+    subject: "วิทยาศาสตร์",
+    subjectId: "physics",
+    color: "#10B981",
+    topics: [
+      { topic: "กลศาสตร์", theta: 0.8 },
+      { topic: "ไฟฟ้า", theta: -0.5 },
+      { topic: "คลื่น", theta: 0.2 },
+      { topic: "ชีววิทยา", theta: 1.6 },
+      { topic: "เคมี", theta: -0.9 },
+    ],
+  },
+  {
+    subject: "ภาษาไทย",
+    subjectId: "thai",
+    color: "#EC4899",
+    topics: [
+      { topic: "การอ่าน", theta: 1.8 },
+      { topic: "การเขียน", theta: 0.9 },
+      { topic: "ไวยากรณ์", theta: 0.4 },
+      { topic: "วรรณคดี", theta: -0.2 },
+      { topic: "การพูด", theta: 1.3 },
+    ],
+  },
+  {
+    subject: "ภาษาอังกฤษ",
+    subjectId: "english",
+    color: "#8B5CF6",
+    topics: [
+      { topic: "Reading", theta: 0.5 },
+      { topic: "Writing", theta: -0.7 },
+      { topic: "Grammar", theta: 0.3 },
+      { topic: "Listening", theta: 1.0 },
+      { topic: "Vocabulary", theta: 1.5 },
+    ],
+  },
+  {
+    subject: "สังคมศึกษา",
+    subjectId: "social",
+    color: "#F59E0B",
+    topics: [
+      { topic: "ประวัติศาสตร์", theta: 1.2 },
+      { topic: "ภูมิศาสตร์", theta: 0.1 },
+      { topic: "เศรษฐศาสตร์", theta: -1.0 },
+      { topic: "พลเมือง", theta: 0.7 },
+      { topic: "ศาสนา", theta: 1.4 },
+    ],
+  },
+];
+
 export const mockDailyStudy: DailyStudy[] = [
   { day: "จ", hours: 1 },
   { day: "อ", hours: 2 },

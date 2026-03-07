@@ -1,5 +1,6 @@
 import { Palette } from "@/constants/theme";
 import {
+    getDocumentById,
     isDocumentDownloaded,
     isVideoDownloaded,
     saveDownloadedDocument,
@@ -23,6 +24,7 @@ import {
     ActivityIndicator,
     Alert,
     Image,
+    Linking,
     Modal,
     Platform,
     ScrollView,
@@ -126,6 +128,25 @@ export default function LessonDetailScreen() {
 
   const accentColor = subjectColorMap[subjectId] ?? Palette.primary;
   const lessonContent = getLessonContent(subjectId || "", lessonId || "");
+
+  const handleOpenDocument = async (doc_id: string) => {
+    const doc = await getDocumentById(doc_id);
+    const uri = doc?.local_file_uri ?? doc?.file_path;
+    if (!uri) {
+      Alert.alert("เปิดไม่ได้", "ไม่พบไฟล์ในเครื่อง กรุณาดาวน์โหลดใหม่");
+      return;
+    }
+    try {
+      const supported = await Linking.canOpenURL(uri);
+      if (supported) {
+        await Linking.openURL(uri);
+      } else {
+        Alert.alert("เปิดไม่ได้", "ไม่มีแอพรองรับไฟล์ประเภทนี้");
+      }
+    } catch {
+      Alert.alert("เกิดข้อผิดพลาด", "ไม่สามารถเปิดไฟล์ได้");
+    }
+  };
 
   const [downloadedIds, setDownloadedIds] = useState<Set<string>>(new Set());
   const [downloadedDocIds, setDownloadedDocIds] = useState<Set<string>>(
@@ -392,10 +413,55 @@ export default function LessonDetailScreen() {
                       : f.type === "exam"
                         ? ClipboardList
                         : FileText;
+                  // action button logic per file type + download state
+                  const rowAction = () => {
+                    if (dl && f.type === "doc") {
+                      handleOpenDocument(f.fileId);
+                    } else if (dl && f.type === "video") {
+                      router.push(`/player/${f.fileId}` as any);
+                    } else if (dl && f.type === "exam") {
+                      router.push(`/exam/${subjectId}-${lessonId}` as any);
+                    } else {
+                      setPreview({ type: f.type, item });
+                    }
+                  };
+
+                  const actionLabel = dl
+                    ? f.type === "doc"
+                      ? "เปิด"
+                      : f.type === "video"
+                        ? "เล่น"
+                        : "ทำข้อสอบ"
+                    : "Preview";
+
+                  const actionBg = dl
+                    ? f.type === "doc"
+                      ? "#EF444415"
+                      : f.type === "video"
+                        ? accentColor + "15"
+                        : "#F59E0B15"
+                    : "#F1F5F9";
+
+                  const actionTextColor = dl
+                    ? f.type === "doc"
+                      ? "#EF4444"
+                      : f.type === "video"
+                        ? accentColor
+                        : "#F59E0B"
+                    : Palette.textMuted;
+
+                  const ActionIcon = dl
+                    ? f.type === "doc"
+                      ? FileText
+                      : f.type === "video"
+                        ? Play
+                        : ClipboardList
+                    : Eye;
+
                   return (
                     <TouchableOpacity
                       key={f.fileId}
-                      onPress={() => setPreview({ type: f.type, item })}
+                      onPress={rowAction}
                       className="flex-row items-center px-4 py-3"
                       style={{
                         borderBottomWidth: fi < files.length - 1 ? 1 : 0,
@@ -422,21 +488,32 @@ export default function LessonDetailScreen() {
                           {f.subtitle}
                         </Text>
                       </View>
-                      {/* Status + preview */}
-                      <View className="flex-row items-center gap-2">
-                        {dl && (
-                          <Check size={14} color="#10B981" strokeWidth={2.5} />
-                        )}
-                        <View className="flex-row items-center px-2.5 py-1 rounded-full bg-edge-light gap-1">
-                          <Eye
-                            size={11}
-                            color={Palette.textMuted}
-                            strokeWidth={2}
-                          />
-                          <Text className="text-[10px] text-brand-muted font-semibold">
-                            Preview
-                          </Text>
-                        </View>
+                      {/* Action button */}
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          paddingHorizontal: 10,
+                          paddingVertical: 5,
+                          borderRadius: 20,
+                          backgroundColor: actionBg,
+                          gap: 4,
+                        }}
+                      >
+                        <ActionIcon
+                          size={11}
+                          color={actionTextColor}
+                          strokeWidth={2.5}
+                        />
+                        <Text
+                          style={{
+                            fontSize: 10,
+                            fontWeight: "700",
+                            color: actionTextColor,
+                          }}
+                        >
+                          {actionLabel}
+                        </Text>
                       </View>
                     </TouchableOpacity>
                   );
@@ -907,6 +984,38 @@ export default function LessonDetailScreen() {
                         }}
                       >
                         เริ่มทำข้อสอบ
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                {preview &&
+                  downloadedDocIds.has(preview.item.doc_id) &&
+                  preview.type === "doc" && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        setPreview(null);
+                        handleOpenDocument(preview.item.doc_id);
+                      }}
+                      style={{
+                        flex: 2,
+                        paddingVertical: 13,
+                        borderRadius: 14,
+                        backgroundColor: "#EF4444",
+                        alignItems: "center",
+                        flexDirection: "row",
+                        justifyContent: "center",
+                        gap: 6,
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <FileText size={15} color="white" strokeWidth={2.5} />
+                      <Text
+                        style={{
+                          fontWeight: "800",
+                          color: "white",
+                          fontSize: 14,
+                        }}
+                      >
+                        เปิดเอกสาร
                       </Text>
                     </TouchableOpacity>
                   )}
