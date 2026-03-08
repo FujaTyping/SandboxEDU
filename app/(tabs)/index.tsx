@@ -3,23 +3,25 @@ import { getJwt } from "@/lib/auth/token";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import {
-    BookOpen,
-    ChevronRight,
-    GraduationCap,
-    RefreshCw,
-    User,
+  BookOpen,
+  ChevronRight,
+  GraduationCap,
+  Pencil,
+  RefreshCw,
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Platform,
-    ScrollView,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Platform,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
+
+const DEFAULT_AVATAR = "https://i.pravatar.cc/512";
 
 interface ApiUser {
   name?: string;
@@ -143,15 +145,11 @@ export default function HomeScreen() {
               justifyContent: "center",
             }}
           >
-            {user?.avatarURL ? (
-              <Image
-                source={{ uri: user.avatarURL }}
-                style={{ width: 88, height: 88 }}
-                contentFit="cover"
-              />
-            ) : (
-              <User size={44} color="#94A3B8" strokeWidth={1.5} />
-            )}
+            <Image
+              source={{ uri: user?.avatarURL || DEFAULT_AVATAR }}
+              style={{ width: 88, height: 88 }}
+              contentFit="cover"
+            />
           </View>
         </View>
 
@@ -196,6 +194,41 @@ export default function HomeScreen() {
               </Text>
             </>
           )}
+        </View>
+
+        {/* Edit Profile Button */}
+        <View
+          style={{
+            paddingHorizontal: 16,
+            paddingBottom: 16,
+            backgroundColor: "#fff",
+          }}
+        >
+          <TouchableOpacity
+            onPress={() => router.push("/(tabs)/settings")}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              alignSelf: "flex-start",
+              backgroundColor: Palette.primary + "12",
+              borderRadius: 10,
+              paddingHorizontal: 12,
+              paddingVertical: 7,
+            }}
+            activeOpacity={0.75}
+          >
+            <Pencil size={13} color={Palette.primary} strokeWidth={2.5} />
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: "700",
+                color: Palette.primary,
+              }}
+            >
+              แก้ไขโปรไฟล์
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
 
