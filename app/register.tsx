@@ -3,26 +3,26 @@ import { saveJwt } from "@/lib/auth/token";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "expo-router";
 import {
-    BookOpen,
-    Eye,
-    EyeOff,
-    Hash,
-    Lock,
-    Mail,
-    User,
-    UserPlus,
+  BookOpen,
+  Eye,
+  EyeOff,
+  Hash,
+  Lock,
+  Mail,
+  User,
+  UserPlus,
 } from "lucide-react-native";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";

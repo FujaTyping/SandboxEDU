@@ -35,6 +35,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import MathJaxView from "react-native-mathjax";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface CourseDetail {
@@ -68,6 +69,70 @@ const cardShadow = Platform.select({
   android: { elevation: 4 },
   default: {},
 });
+
+function hasMath(text: string): boolean {
+  return /\$|\\\(|\\\[|\\frac|\\sqrt|\\sum|\\int|\\pi|\\alpha|\\beta|\\theta/.test(
+    text,
+  );
+}
+
+function MathText({
+  content,
+  fontSize = 16,
+  color = "#111",
+  fontWeight = "normal",
+}: {
+  content: string;
+  fontSize?: number;
+  color?: string;
+  fontWeight?: string;
+}) {
+  if (!hasMath(content)) {
+    return (
+      <Text
+        style={{
+          fontSize,
+          color,
+          fontWeight: fontWeight as any,
+          lineHeight: fontSize * 1.5,
+        }}
+      >
+        {content}
+      </Text>
+    );
+  }
+  const mathJaxOptions = {
+    messageStyle: "none",
+    extensions: ["tex2jax.js"],
+    jax: ["input/TeX", "output/HTML-CSS"],
+    tex2jax: {
+      inlineMath: [
+        ["$", "$"],
+        ["\\(", "\\)"],
+      ],
+      displayMath: [
+        ["$$", "$$"],
+        ["\\[", "\\]"],
+      ],
+      processEscapes: true,
+    },
+    TeX: {
+      extensions: [
+        "AMSmath.js",
+        "AMSsymbols.js",
+        "noErrors.js",
+        "noUndefined.js",
+      ],
+    },
+  };
+  return (
+    <MathJaxView
+      mathJaxOptions={mathJaxOptions}
+      html={`<span style="font-size:${fontSize}px;color:${color};font-weight:${fontWeight};">${content}</span>`}
+      style={{ minHeight: fontSize * 2 }}
+    />
+  );
+}
 
 async function getToken(): Promise<string | null> {
   return getJwt();
@@ -1000,16 +1065,12 @@ function QuizScreen({
             >
               คำถามข้อที่ {currentQ + 1}
             </Text>
-            <Text
-              style={{
-                fontSize: 17,
-                fontWeight: "700",
-                color: "#111",
-                lineHeight: 26,
-              }}
-            >
-              {questionText}
-            </Text>
+            <MathText
+              content={questionText}
+              fontSize={17}
+              color="#111"
+              fontWeight="700"
+            />
           </View>
 
           <View style={{ gap: 12 }}>
@@ -1069,17 +1130,14 @@ function QuizScreen({
                       {String.fromCharCode(65 + idx)}
                     </Text>
                   </View>
-                  <Text
-                    style={{
-                      flex: 1,
-                      fontSize: 15,
-                      fontWeight: "600",
-                      color: textColor,
-                      lineHeight: 22,
-                    }}
-                  >
-                    {choice}
-                  </Text>
+                  <View style={{ flex: 1 }}>
+                    <MathText
+                      content={choice}
+                      fontSize={15}
+                      color={textColor}
+                      fontWeight="600"
+                    />
+                  </View>
                   {selected !== null && isCorrect && (
                     <CheckCircle size={18} color="#22C55E" />
                   )}
