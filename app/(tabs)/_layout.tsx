@@ -21,38 +21,39 @@ export default function TabLayout() {
           bottom: 0,
           left: 0,
           right: 0,
-          borderTopLeftRadius: 28,
-          borderTopRightRadius: 28,
-          height: 75,
-          paddingBottom: 12,
-          paddingTop: 8,
-          paddingHorizontal: 16,
+          borderTopLeftRadius: 0,
+          borderTopRightRadius: 0,
+          height: 80,
+          paddingBottom: 8,
+          paddingTop: 6,
+          paddingHorizontal: 8,
           backgroundColor: Palette.surface,
           borderTopWidth: 1,
-          borderTopColor: Palette.borderLight,
+          borderTopColor: Palette.border,
           ...Platform.select({
             ios: {
               shadowColor: "#000",
-              shadowOffset: { width: 0, height: -8 },
-              shadowOpacity: 0.12,
-              shadowRadius: 16,
+              shadowOffset: { width: 0, height: -4 },
+              shadowOpacity: 0.08,
+              shadowRadius: 10,
             },
-            android: { elevation: 16 },
+            android: { elevation: 12 },
             default: {},
           }),
         },
         tabBarItemStyle: {
-          paddingVertical: 4,
+          paddingVertical: 2,
+          paddingTop: 6,
         },
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: "700",
-          marginTop: 4,
+          marginTop: 2,
           letterSpacing: 0.2,
         },
         tabBarInactiveTintColor: Palette.textMuted,
         tabBarIconStyle: {
-          marginTop: 2,
+          marginBottom: 0,
         },
       }}
     >
@@ -62,9 +63,16 @@ export default function TabLayout() {
           title: "หน้าหลัก",
           tabBarIcon: ({ color, focused }) => (
             <View
-              className={`w-12 h-12 rounded-2xl justify-center items-center ${focused ? "bg-primary-bg" : "bg-transparent"}`}
+              style={{
+                width: 52,
+                height: 36,
+                borderRadius: 10,
+                justifyContent: "center",
+                alignItems: "center",
+                backgroundColor: focused ? Palette.primaryBg : "transparent",
+              }}
             >
-              <IconSymbol size={26} name="house.fill" color={color} />
+              <IconSymbol size={30} name="house.fill" color={color} />
             </View>
           ),
         }}
@@ -75,9 +83,16 @@ export default function TabLayout() {
           title: "บทเรียน",
           tabBarIcon: ({ color, focused }) => (
             <View
-              className={`w-12 h-12 rounded-2xl justify-center items-center ${focused ? "bg-primary-bg" : "bg-transparent"}`}
+              style={{
+                width: 52,
+                height: 36,
+                borderRadius: 10,
+                justifyContent: "center",
+                alignItems: "center",
+                backgroundColor: focused ? Palette.primaryBg : "transparent",
+              }}
             >
-              <IconSymbol size={26} name="book.fill" color={color} />
+              <IconSymbol size={30} name="book.fill" color={color} />
             </View>
           ),
         }}
@@ -88,9 +103,16 @@ export default function TabLayout() {
           title: "ตั้งค่า",
           tabBarIcon: ({ color, focused }) => (
             <View
-              className={`w-12 h-12 rounded-2xl justify-center items-center ${focused ? "bg-primary-bg" : "bg-transparent"}`}
+              style={{
+                width: 52,
+                height: 36,
+                borderRadius: 10,
+                justifyContent: "center",
+                alignItems: "center",
+                backgroundColor: focused ? Palette.primaryBg : "transparent",
+              }}
             >
-              <IconSymbol size={26} name="gearshape.fill" color={color} />
+              <IconSymbol size={30} name="gearshape.fill" color={color} />
             </View>
           ),
         }}

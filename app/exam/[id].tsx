@@ -62,8 +62,29 @@ export default function ExamScreen() {
     if (!quizData) return [];
     try {
       const parsed = JSON.parse(quizData);
-      return Array.isArray(parsed) ? parsed : (parsed.questions ?? []);
-    } catch {
+      const rawQuestions = Array.isArray(parsed)
+        ? parsed
+        : (parsed.questions ?? []);
+
+      // Validate และ normalize แต่ละ question
+      return rawQuestions.map((q: any, index: number) => {
+        // API ส่งมาเป็น 'options' แต่เราใช้ 'choices'
+        const choicesArray = Array.isArray(q.choices)
+          ? q.choices
+          : Array.isArray(q.options)
+            ? q.options
+            : [];
+
+        return {
+          id: q.id || `q-${index}`,
+          question: q.title || q.question || "ไม่มีคำถาม",
+          choices: choicesArray,
+          answer: q.key || q.answer || "",
+          explanation: q.answer || q.explanation || "",
+        };
+      });
+    } catch (e) {
+      console.error("[EXAM] Failed to parse quiz data:", e);
       return [];
     }
   }, [quizData]);
@@ -80,6 +101,28 @@ export default function ExamScreen() {
   const currentQ = questions[currentIndex];
   const selectedAnswer = answers[currentQ?.id ?? ""];
   const isAnswered = !!selectedAnswer;
+
+  // ถ้าไม่มี questions ให้แสดง error
+  if (questions.length === 0 && !quizData) {
+    return (
+      <View className="flex-1 bg-surface-alt items-center justify-center px-6">
+        <Text className="text-2xl mb-2">⚠️</Text>
+        <Text className="text-brand-text font-bold text-lg mb-2">
+          ไม่พบข้อมูลแบบทดสอบ
+        </Text>
+        <Text className="text-brand-muted text-sm text-center mb-4">
+          กรุณาสร้างแบบทดสอบก่อนเข้าทำข้อสอบ
+        </Text>
+        <TouchableOpacity
+          className="px-6 py-3 rounded-xl"
+          style={{ backgroundColor: accentColor }}
+          onPress={() => router.back()}
+        >
+          <Text className="text-white font-bold">กลับ</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   const score = questions.filter((q) => answers[q.id] === q.answer).length;
 
@@ -200,7 +243,7 @@ export default function ExamScreen() {
         </Text>
 
         {/* Choices from array */}
-        {currentQ?.choices.map((choiceText, ci) => {
+        {(currentQ?.choices || []).map((choiceText, ci) => {
           const choiceKey = String(ci);
           const isSelected = selectedAnswer === choiceKey;
           const isRightAnswer =
@@ -386,14 +429,15 @@ export default function ExamScreen() {
         const userText =
           userAnswer !== undefined
             ? (q.choices[Number(userAnswer)] ?? userAnswer)
-            : "-";
+            : "ไม่ได้ตอบ";
+
         return (
           <View
             key={q.id}
-            className="bg-surface rounded-xl p-4 mb-2.5"
+            className="bg-surface rounded-xl p-4 mb-3 flex-row"
             style={cardShadow}
           >
-            <View className="flex-row items-start">
+            <View className="flex-row flex-1">
               <View
                 className="w-7 h-7 rounded-full items-center justify-center mr-3 mt-0.5"
                 style={{ backgroundColor: correct ? "#10B981" : "#EF4444" }}
