@@ -1,1 +1,0 @@
-ตอนที่จะprodต้องแก้ระบบ email confirmation
