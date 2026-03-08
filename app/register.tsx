@@ -54,6 +54,7 @@ export default function RegisterScreen() {
   const [displayName, setDisplayName] = useState("");
   const [sclass, setSclass] = useState("");
   const [room, setRoom] = useState("");
+  const [avatarURL, setAvatarURL] = useState("https://i.pravatar.cc/512");
 
   async function handleRegister() {
     const trimmedName = name.trim();
@@ -140,7 +141,7 @@ export default function RegisterScreen() {
           name: fn,
           surname: ln,
           displayName: dn,
-          avatarURL: "",
+          avatarURL: avatarURL.trim() || "https://i.pravatar.cc/512",
           sclass: sc,
           room: rm,
         }),
@@ -262,6 +263,13 @@ export default function RegisterScreen() {
                 setter: setDisplayName,
                 placeholder: "ชายชาย",
                 icon: UserPlus,
+              },
+              {
+                label: "URL รูปโปรไฟล์ (ไม่บังคับ)",
+                value: avatarURL,
+                setter: setAvatarURL,
+                placeholder: "https://i.pravatar.cc/512",
+                icon: BookOpen,
               },
             ].map((f) => (
               <View key={f.label} className="mb-4">
