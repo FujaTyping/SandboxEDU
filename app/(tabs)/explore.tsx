@@ -1,6 +1,8 @@
 import { CourseListSkeleton } from "@/components/LoadingSkeleton";
 import { Palette } from "@/constants/theme";
 import { getJwt } from "@/lib/auth/token";
+import { getVideoProgress } from "@/lib/progress/videoProgress";
+import { useFocusEffect } from "@react-navigation/native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import {
@@ -76,12 +78,15 @@ async function getAuthHeader(): Promise<string | null> {
 function CourseCard({
   course,
   onPress,
+  watchPct = 0,
 }: {
   course: ApiCourse;
   onPress: () => void;
+  watchPct?: number;
 }) {
   const color = SUBJECT_COLOR[course.subject] ?? Palette.primary;
   const icon = SUBJECT_ICON[course.subject] ?? "📚";
+
   return (
     <TouchableOpacity
       style={cardShadow}
@@ -134,6 +139,46 @@ function CourseCard({
               โดย {course.by}
             </Text>
           )}
+          {/* Watch progress bar */}
+          {watchPct > 0 && (
+            <View style={{ marginTop: 6 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  marginBottom: 3,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 10,
+                    color: watchPct >= 90 ? "#22C55E" : color,
+                    fontWeight: "700",
+                  }}
+                >
+                  {watchPct >= 90
+                    ? "✓ ดูจบแล้ว"
+                    : `ดูไปแล้ว ${Math.round(watchPct)}%`}
+                </Text>
+              </View>
+              <View
+                style={{
+                  height: 4,
+                  backgroundColor: color + "20",
+                  borderRadius: 2,
+                }}
+              >
+                <View
+                  style={{
+                    height: 4,
+                    borderRadius: 2,
+                    backgroundColor: watchPct >= 90 ? "#22C55E" : color,
+                    width: `${Math.min(watchPct, 100)}%`,
+                  }}
+                />
+              </View>
+            </View>
+          )}
           <View className="flex-row items-center mt-2" style={{ gap: 8 }}>
             <View
               className="flex-row items-center px-2 py-1 rounded-lg"
@@ -169,12 +214,14 @@ function CoursesTab({
   error,
   onRefresh,
   onCoursePress,
+  progressMap,
 }: {
   courses: ApiCourse[];
   loading: boolean;
   error: string | null;
   onRefresh: () => void;
   onCoursePress: (course: ApiCourse) => void;
+  progressMap: Record<string, number>;
 }) {
   if (loading) {
     return <CourseListSkeleton count={5} />;
@@ -214,6 +261,7 @@ function CoursesTab({
           key={course.id}
           course={course}
           onPress={() => onCoursePress(course)}
+          watchPct={progressMap[course.id] ?? 0}
         />
       ))}
     </View>
@@ -398,11 +446,22 @@ function QuizTab({ courses }: { courses: ApiCourse[] }) {
 export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"courses" | "quiz">("courses");
   const [courses, setCourses] = useState<ApiCourse[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progressMap, setProgressMap] = useState<Record<string, number>>({});
+
+  const loadProgressMap = useCallback(async (courseList: ApiCourse[]) => {
+    const map: Record<string, number> = {};
+    await Promise.all(
+      courseList.map(async (c) => {
+        const p = await getVideoProgress(c.id);
+        if (p) map[c.id] = p.percentage;
+      }),
+    );
+    setProgressMap(map);
+  }, []);
 
   const fetchCourses = useCallback(async (isRefresh = false) => {
     const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -426,6 +485,7 @@ export default function ExploreScreen() {
         ? data
         : (data.courses ?? []);
       setCourses(list);
+      loadProgressMap(list);
     } catch (e) {
       setError(e instanceof Error ? e.message : "โหลดข้อมูลไม่ได้");
     } finally {
@@ -442,6 +502,13 @@ export default function ExploreScreen() {
     fetchCourses();
   }, [fetchCourses]);
 
+  // Reload progress every time tab comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      if (courses.length > 0) loadProgressMap(courses);
+    }, [courses, loadProgressMap]),
+  );
+
   return (
     <View className="flex-1 bg-surface-alt">
       {/* Header */}
@@ -451,49 +518,12 @@ export default function ExploreScreen() {
             สำรวจ
           </Text>
           <TouchableOpacity
-            onPress={fetchCourses}
+            onPress={handleRefresh}
             className="p-2"
             activeOpacity={0.7}
           >
             <RefreshCw size={18} color={Palette.primary} strokeWidth={2} />
           </TouchableOpacity>
-        </View>
-
-        {/* Tabs */}
-        <View
-          className="flex-row bg-surface rounded-2xl p-1"
-          style={{ gap: 4 }}
-        >
-          {[
-            { key: "courses", label: "บทเรียน", icon: BookOpen },
-            { key: "quiz", label: "แบบทดสอบ", icon: ClipboardList },
-          ].map((tab) => {
-            const active = activeTab === tab.key;
-            return (
-              <TouchableOpacity
-                key={tab.key}
-                onPress={() => setActiveTab(tab.key as any)}
-                className="flex-1 flex-row items-center justify-center py-2.5 rounded-xl"
-                style={{
-                  backgroundColor: active ? Palette.primary : "transparent",
-                  gap: 6,
-                }}
-                activeOpacity={0.8}
-              >
-                <tab.icon
-                  size={14}
-                  color={active ? "#fff" : "#64748B"}
-                  strokeWidth={2}
-                />
-                <Text
-                  className="text-xs font-bold"
-                  style={{ color: active ? "#fff" : "#64748B" }}
-                >
-                  {tab.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
         </View>
       </View>
 
@@ -510,22 +540,19 @@ export default function ExploreScreen() {
           />
         }
       >
-        {activeTab === "courses" ? (
-          <CoursesTab
-            courses={courses}
-            loading={loading}
-            error={error}
-            onRefresh={fetchCourses}
-            onCoursePress={(course) =>
-              router.push({
-                pathname: "/video/[id]",
-                params: { id: course.id, courseTitle: course.title },
-              } as any)
-            }
-          />
-        ) : (
-          <QuizTab courses={courses} />
-        )}
+        <CoursesTab
+          courses={courses}
+          loading={loading}
+          error={error}
+          progressMap={progressMap}
+          onRefresh={handleRefresh}
+          onCoursePress={(course) =>
+            router.push({
+              pathname: "/video/[id]",
+              params: { id: course.id, courseTitle: course.title },
+            } as any)
+          }
+        />
       </ScrollView>
     </View>
   );

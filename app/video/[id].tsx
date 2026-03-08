@@ -1,16 +1,31 @@
 import { Palette } from "@/constants/theme";
 import { getJwt } from "@/lib/auth/token";
+import {
+  deleteCourse,
+  downloadCourse,
+  getLocalCourseUri,
+  isCourseDownloaded,
+} from "@/lib/offline/downloadManager";
+import {
+  clearVideoProgress,
+  formatProgress,
+  formatTime,
+  getVideoProgress,
+  saveVideoProgress,
+} from "@/lib/progress/videoProgress";
 import { Image } from "expo-image";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import * as ScreenOrientation from "expo-screen-orientation";
 import { useVideoPlayer, VideoView } from "expo-video";
 import {
   ArrowLeft,
+  Check,
   CheckCircle,
   ClipboardList,
   Play,
-  UserCheck,
+  Zap,
 } from "lucide-react-native";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -21,7 +36,6 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
 interface CourseDetail {
   id: string;
@@ -59,7 +73,38 @@ async function getToken(): Promise<string | null> {
   return getJwt();
 }
 
-type Phase = "preview" | "player";
+type Phase = "preview" | "player" | "quiz";
+type Difficulty = "easy" | "medium" | "hard";
+
+const DIFFICULTY_OPTIONS: {
+  key: Difficulty;
+  label: string;
+  desc: string;
+  color: string;
+  emoji: string;
+}[] = [
+  {
+    key: "easy",
+    label: "ง่าย",
+    desc: "คำถามพื้นฐาน",
+    color: "#22C55E",
+    emoji: "🟢",
+  },
+  {
+    key: "medium",
+    label: "ปานกลาง",
+    desc: "คำถามกลาง",
+    color: "#F59E0B",
+    emoji: "🟡",
+  },
+  {
+    key: "hard",
+    label: "ยาก",
+    desc: "คำถามขั้นสูง",
+    color: "#EF4444",
+    emoji: "🔴",
+  },
+];
 
 function CoursePlayer({
   course,
@@ -74,26 +119,153 @@ function CoursePlayer({
   onBack: () => void;
   insetTop: number;
 }) {
-  const videoUrl = course.courseURL ?? "";
-  const player = useVideoPlayer(videoUrl, (p) => {
-    p.loop = false;
-    p.play();
-  });
   const [completing, setCompleting] = useState(false);
+  const [hasResumed, setHasResumed] = useState(false);
+  const [videoSource, setVideoSource] = useState<string | null>(null);
+  const isMounted = useRef(true);
+  const resumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [liveProgress, setLiveProgress] = useState<{
+    pct: number;
+    current: number;
+    duration: number;
+  } | null>(null);
 
-  // Cleanup video player on unmount
+  // Resolve local file first, fallback to online URL
   useEffect(() => {
-    return () => {
-      if (player) {
-        player.pause();
-        player.release();
+    (async () => {
+      const localUri = await getLocalCourseUri(course.id);
+      if (localUri) {
+        console.log("[Player] Using offline video:", localUri);
+        setVideoSource(localUri);
+      } else {
+        console.log("[Player] Using online video:", course.courseURL);
+        setVideoSource(course.courseURL ?? null);
       }
+    })();
+  }, [course.id, course.courseURL]);
+
+  // expo-video v3: useVideoPlayer(source, setupCallback)
+  const player = useVideoPlayer(
+    videoSource ? { uri: videoSource } : { uri: "" },
+    (p) => {
+      p.loop = false;
+    },
+  );
+
+  // Track mounted state and cleanup
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+      if (resumeTimer.current) clearTimeout(resumeTimer.current);
+      // Restore portrait on unmount
+      ScreenOrientation.lockAsync(
+        ScreenOrientation.OrientationLock.PORTRAIT_UP,
+      ).catch(() => {});
+      try {
+        player.pause();
+      } catch (e) {}
+      try {
+        player.release();
+      } catch (e) {}
     };
-  }, [player]);
+  }, []);
+
+  // When source is resolved, replaceAsync and play
+  useEffect(() => {
+    if (!videoSource) return;
+    player.replaceAsync({ uri: videoSource }).catch((e: unknown) => {
+      console.warn("[Player] replaceAsync() failed:", e);
+    });
+  }, [videoSource]);
+
+  // Handle fullscreen orientation
+  const handleFullscreenEnter = async () => {
+    setIsFullscreen(true);
+    await ScreenOrientation.lockAsync(
+      ScreenOrientation.OrientationLock.LANDSCAPE,
+    ).catch(() => {});
+  };
+
+  const handleFullscreenExit = async () => {
+    setIsFullscreen(false);
+    await ScreenOrientation.lockAsync(
+      ScreenOrientation.OrientationLock.PORTRAIT_UP,
+    ).catch(() => {});
+  };
+
+  // Resume from last saved position
+  useEffect(() => {
+    if (!videoSource || hasResumed) return;
+
+    (async () => {
+      const progress = await getVideoProgress(course.id);
+      if (!isMounted.current) return;
+
+      const delay = progress && progress.percentage < 90 ? 800 : 300;
+      resumeTimer.current = setTimeout(() => {
+        if (!isMounted.current) return;
+        try {
+          if (progress && progress.percentage < 90) {
+            player.currentTime = progress.currentTime;
+            console.log(
+              `[Player] Resuming from ${formatTime(progress.currentTime)} (${formatProgress(progress)})`,
+            );
+          }
+          player.play();
+        } catch (e) {
+          console.warn("[Player] play/seek failed:", e);
+        }
+      }, delay);
+
+      setHasResumed(true);
+    })();
+  }, [videoSource, course.id, hasResumed]);
+
+  // Poll currentTime every second for live progress display + save every 5s
+  useEffect(() => {
+    if (!videoSource) return;
+    let tick = 0;
+    const interval = setInterval(() => {
+      if (!isMounted.current) return;
+      try {
+        const currentTime = player.currentTime ?? 0;
+        const duration = player.duration ?? 0;
+        // Debug: log every 3 ticks to see what values we get
+        if (tick % 3 === 0) {
+          console.log(
+            `[Progress] tick=${tick} currentTime=${currentTime} duration=${duration} playing=${player.playing}`,
+          );
+        }
+        tick++;
+        // Guard against 0, Infinity, NaN
+        const validDuration = isFinite(duration) && duration > 0;
+        if (validDuration && currentTime >= 0) {
+          const pct = (currentTime / duration) * 100;
+          setLiveProgress({ pct, current: currentTime, duration });
+          if (tick % 5 === 0) {
+            console.log(
+              `[Progress] Saving: ${currentTime.toFixed(1)}s / ${duration.toFixed(1)}s = ${pct.toFixed(1)}%`,
+            );
+            saveVideoProgress(course.id, currentTime, duration);
+          }
+        }
+      } catch (e) {
+        console.warn("[Progress] poll error:", e);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [course.id, videoSource]);
 
   const handleDone = async () => {
     setCompleting(true);
     try {
+      // Save final progress as 100%
+      if (player) {
+        await saveVideoProgress(course.id, player.duration, player.duration);
+      }
+
       const token = await getToken();
       if (!token) {
         Alert.alert("กรุณาเข้าสู่ระบบก่อน");
@@ -112,6 +284,10 @@ function CoursePlayer({
         const err = await res.json().catch(() => ({}));
         throw new Error((err as any).message ?? `HTTP ${res.status}`);
       }
+
+      // Clear progress after completion
+      await clearVideoProgress(course.id);
+
       Alert.alert("ยินดีด้วย! 🎉", "คุณเรียนจบคอร์สนี้แล้ว", [
         { text: "ตกลง", onPress: onDone },
       ]);
@@ -125,78 +301,1032 @@ function CoursePlayer({
     }
   };
 
+  const [descExpanded, setDescExpanded] = useState(false);
+
   return (
-    <View className="flex-1 bg-black">
+    <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <Stack.Screen options={{ headerShown: false }} />
-      {/* Back button */}
+
+      {/* ── Header bar (above video, below Dynamic Island) ── */}
       <View
         style={{
-          position: "absolute",
-          top: insetTop + 8,
-          left: 16,
-          zIndex: 10,
+          backgroundColor: "#000",
+          paddingTop: insetTop,
         }}
       >
-        <TouchableOpacity
-          onPress={onBack}
-          className="w-10 h-10 rounded-full bg-black/40 items-center justify-center"
-          activeOpacity={0.7}
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+            gap: 10,
+          }}
         >
-          <ArrowLeft size={20} color="white" strokeWidth={2.5} />
-        </TouchableOpacity>
+          <TouchableOpacity
+            onPress={onBack}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              backgroundColor: "rgba(255,255,255,0.12)",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            activeOpacity={0.7}
+          >
+            <ArrowLeft size={18} color="white" strokeWidth={2.5} />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}
+              numberOfLines={1}
+            >
+              {course.title}
+            </Text>
+            {liveProgress && liveProgress.duration > 0 ? (
+              <Text
+                style={{
+                  color: "rgba(255,255,255,0.6)",
+                  fontSize: 11,
+                  marginTop: 1,
+                }}
+              >
+                {formatTime(liveProgress.current)} /{" "}
+                {formatTime(liveProgress.duration)}
+                {"  •  "}
+                {Math.round(liveProgress.pct)}%
+              </Text>
+            ) : null}
+          </View>
+        </View>
       </View>
 
-      {/* Video Player */}
-      <VideoView
-        player={player}
-        style={{ width: "100%", aspectRatio: 16 / 9 }}
-        allowsFullscreen
-        allowsPictureInPicture
-        contentFit="contain"
-        nativeControls
-      />
-
-      {/* Info + Done */}
-      <ScrollView
-        className="flex-1 bg-surface-alt px-5"
-        contentContainerStyle={{ paddingTop: 20, paddingBottom: 40 }}
-        showsVerticalScrollIndicator={false}
+      {/* ── Video area ── */}
+      <View
+        style={{ backgroundColor: "#000", width: "100%", aspectRatio: 16 / 9 }}
       >
-        <Text className="text-xl font-black text-brand-text mb-1">
-          {course.title}
-        </Text>
-        <Text className="text-sm text-brand-muted mb-4">
-          {course.subject} · ม.{course.class}
-          {course.by ? ` · โดย ${course.by}` : ""}
-        </Text>
-
-        {course.decs ? (
-          <View className="bg-surface rounded-2xl p-4 mb-6" style={cardShadow}>
-            <Text className="text-sm text-brand-secondary leading-6">
-              {course.decs}
+        {videoSource === null ? (
+          <View
+            style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
+          >
+            <ActivityIndicator size="large" color="#fff" />
+            <Text
+              style={{
+                color: "#fff",
+                marginTop: 12,
+                fontSize: 13,
+                opacity: 0.7,
+              }}
+            >
+              กำลังโหลดวิดีโอ...
             </Text>
           </View>
-        ) : null}
+        ) : (
+          <VideoView
+            player={player}
+            style={{ width: "100%", height: "100%" }}
+            fullscreenOptions={{ enable: true }}
+            allowsPictureInPicture
+            contentFit="contain"
+            nativeControls
+            onFullscreenEnter={handleFullscreenEnter}
+            onFullscreenExit={handleFullscreenExit}
+          />
+        )}
+      </View>
 
-        {/* Done button */}
-        <TouchableOpacity
-          onPress={handleDone}
-          disabled={completing}
-          className="flex-row items-center justify-center py-4 rounded-2xl"
+      {/* ── Progress bar under video ── */}
+      <View
+        style={{
+          backgroundColor: "#000",
+          paddingHorizontal: 12,
+          paddingBottom: 10,
+          paddingTop: 4,
+        }}
+      >
+        <View
           style={{
-            backgroundColor: completing ? "#94A3B8" : accentColor,
+            flexDirection: "row",
+            justifyContent: "space-between",
+            marginBottom: 5,
           }}
-          activeOpacity={0.8}
         >
-          {completing ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <>
-              <CheckCircle size={18} color="#fff" strokeWidth={2.5} />
-              <Text className="text-white font-black ml-2 text-base">Done</Text>
-            </>
+          <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 11 }}>
+            {liveProgress && liveProgress.duration > 0
+              ? `ดูไปแล้ว ${formatTime(liveProgress.current)}`
+              : "ผู้ผลิตกำลังโหลด..."}
+          </Text>
+          <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 11 }}>
+            {liveProgress && liveProgress.duration > 0
+              ? formatTime(liveProgress.duration)
+              : ""}
+          </Text>
+        </View>
+        <View
+          style={{
+            height: 3,
+            backgroundColor: "rgba(255,255,255,0.15)",
+            borderRadius: 2,
+          }}
+        >
+          <View
+            style={{
+              height: 3,
+              borderRadius: 2,
+              backgroundColor: accentColor,
+              width: liveProgress
+                ? `${Math.min(liveProgress.pct, 100)}%`
+                : "0%",
+            }}
+          />
+        </View>
+      </View>
+
+      {/* ── Info panel ── */}
+      <ScrollView
+        style={{ flex: 1, backgroundColor: "#ffffff" }}
+        contentContainerStyle={{ paddingBottom: 40 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Title + meta */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
+          <Text
+            style={{
+              color: "#111111",
+              fontSize: 17,
+              fontWeight: "800",
+              lineHeight: 24,
+              marginBottom: 8,
+            }}
+          >
+            {course.title}
+          </Text>
+
+          {/* Tags row */}
+          <View
+            style={{
+              flexDirection: "row",
+              flexWrap: "wrap",
+              gap: 6,
+              marginBottom: 12,
+            }}
+          >
+            {course.subject ? (
+              <View
+                style={{
+                  paddingHorizontal: 10,
+                  paddingVertical: 4,
+                  borderRadius: 20,
+                  backgroundColor: accentColor + "22",
+                  borderWidth: 1,
+                  borderColor: accentColor + "55",
+                }}
+              >
+                <Text
+                  style={{
+                    color: accentColor,
+                    fontSize: 12,
+                    fontWeight: "600",
+                  }}
+                >
+                  {course.subject}
+                </Text>
+              </View>
+            ) : null}
+            {course.class ? (
+              <View
+                style={{
+                  paddingHorizontal: 10,
+                  paddingVertical: 4,
+                  borderRadius: 20,
+                  backgroundColor: "#F0F0F0",
+                }}
+              >
+                <Text
+                  style={{ color: "#666", fontSize: 12, fontWeight: "600" }}
+                >
+                  ม.{course.class}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
+          {/* Divider */}
+          <View
+            style={{
+              height: 1,
+              backgroundColor: "#E5E5E5",
+              marginBottom: 14,
+            }}
+          />
+
+          {/* Channel-style row */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              marginBottom: 16,
+            }}
+          >
+            <View
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: accentColor,
+                alignItems: "center",
+                justifyContent: "center",
+                marginRight: 12,
+              }}
+            >
+              <Text style={{ color: "#fff", fontSize: 16, fontWeight: "800" }}>
+                {(course.by ?? "T").charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: "#111", fontWeight: "700", fontSize: 14 }}>
+                {course.by ?? "ผู้สอน"}
+              </Text>
+              <Text style={{ color: "#888", fontSize: 12, marginTop: 1 }}>
+                SandboxEDU
+              </Text>
+            </View>
+          </View>
+
+          {/* Description (collapsible) */}
+          {course.decs ? (
+            <TouchableOpacity
+              onPress={() => setDescExpanded((v) => !v)}
+              activeOpacity={0.8}
+              style={{
+                backgroundColor: "#F5F5F5",
+                borderRadius: 12,
+                padding: 14,
+                marginBottom: 20,
+              }}
+            >
+              <Text
+                style={{ color: "#444", fontSize: 13, lineHeight: 20 }}
+                numberOfLines={descExpanded ? undefined : 3}
+              >
+                {course.decs}
+              </Text>
+              <Text
+                style={{
+                  color: accentColor,
+                  fontSize: 12,
+                  fontWeight: "700",
+                  marginTop: 6,
+                }}
+              >
+                {descExpanded ? "▲ ย่อ" : "▼ อ่านเพิ่มเติม"}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+
+          {/* ── Done button ── */}
+          <TouchableOpacity
+            onPress={handleDone}
+            disabled={completing}
+            activeOpacity={0.85}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              paddingVertical: 16,
+              borderRadius: 14,
+              backgroundColor: completing ? "#555" : accentColor,
+              shadowColor: accentColor,
+              shadowOpacity: completing ? 0 : 0.45,
+              shadowRadius: 14,
+              shadowOffset: { width: 0, height: 5 },
+              elevation: 6,
+            }}
+          >
+            {completing ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <CheckCircle size={20} color="#fff" strokeWidth={2.5} />
+                <Text
+                  style={{
+                    color: "#fff",
+                    fontWeight: "800",
+                    fontSize: 16,
+                    marginLeft: 8,
+                    letterSpacing: 0.3,
+                  }}
+                >
+                  เรียนจบแล้ว!
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+function QuizScreen({
+  course,
+  accentColor,
+  insetTop,
+  onBack,
+}: {
+  course: CourseDetail;
+  accentColor: string;
+  insetTop: number;
+  onBack: () => void;
+}) {
+  const [difficulty, setDifficulty] = useState<Difficulty>("medium");
+  const [starting, setStarting] = useState(false);
+  const [phase, setPhase] = useState<"select" | "playing" | "result">("select");
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [currentQ, setCurrentQ] = useState(0);
+  const [selected, setSelected] = useState<number | null>(null);
+  const [answers, setAnswers] = useState<boolean[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleStart = async () => {
+    setStarting(true);
+    setError(null);
+    try {
+      const token = await getToken();
+      if (!token) {
+        setError("กรุณาเข้าสู่ระบบก่อน");
+        return;
+      }
+      const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
+      const res = await fetch(`${apiBase}/quiz/generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: course.id, difficulty }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const qs = Array.isArray(data)
+        ? data
+        : (data.questions ?? data.quiz ?? []);
+      if (qs.length === 0) throw new Error("ไม่พบคำถาม");
+      setQuestions(qs);
+      setCurrentQ(0);
+      setAnswers([]);
+      setSelected(null);
+      setPhase("playing");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "โหลดแบบทดสอบไม่ได้");
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const handleAnswer = async (idx: number) => {
+    if (selected !== null) return;
+    setSelected(idx);
+    const q = questions[currentQ];
+    const answerVal: string = q.key ?? q.answer ?? "";
+    const choicesArr: string[] = q.choices ?? q.options ?? [];
+    const correctIdx = choicesArr.indexOf(answerVal);
+    const isCorrect = idx === correctIdx;
+    const newAnswers = [...answers, isCorrect];
+
+    setTimeout(async () => {
+      if (currentQ + 1 < questions.length) {
+        setCurrentQ((p) => p + 1);
+        setSelected(null);
+        setAnswers(newAnswers);
+      } else {
+        // Done - submit result
+        setAnswers(newAnswers);
+        setPhase("result");
+        setSubmitting(true);
+        try {
+          const correct = newAnswers.filter(Boolean).length;
+          const wrong = newAnswers.length - correct;
+          const token = await getToken();
+          if (token) {
+            const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
+            await fetch(`${apiBase}/quiz/complete`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ id: course.id, correct, wrong }),
+            });
+          }
+        } catch (_) {
+        } finally {
+          setSubmitting(false);
+        }
+      }
+    }, 900);
+  };
+
+  // ── Select difficulty screen ──
+  if (phase === "select") {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
+        <Stack.Screen options={{ headerShown: false }} />
+        {/* Header */}
+        <View style={{ backgroundColor: accentColor, paddingTop: insetTop }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              padding: 16,
+              gap: 12,
+            }}
+          >
+            <TouchableOpacity
+              onPress={onBack}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                backgroundColor: "rgba(255,255,255,0.2)",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              activeOpacity={0.7}
+            >
+              <ArrowLeft size={18} color="#fff" strokeWidth={2.5} />
+            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}
+                numberOfLines={1}
+              >
+                {course.title}
+              </Text>
+              <Text
+                style={{
+                  color: "rgba(255,255,255,0.75)",
+                  fontSize: 12,
+                  marginTop: 1,
+                }}
+              >
+                แบบทดสอบ
+              </Text>
+            </View>
+            <ClipboardList size={22} color="rgba(255,255,255,0.8)" />
+          </View>
+        </View>
+
+        <ScrollView contentContainerStyle={{ padding: 20 }}>
+          <Text
+            style={{
+              fontSize: 22,
+              fontWeight: "800",
+              color: "#111",
+              marginBottom: 6,
+            }}
+          >
+            เลือกระดับความยาก
+          </Text>
+          <Text style={{ fontSize: 14, color: "#64748B", marginBottom: 24 }}>
+            ระบบจะสร้างคำถามให้อัตโนมัติตามระดับที่เลือก
+          </Text>
+
+          <View style={{ gap: 12, marginBottom: 28 }}>
+            {DIFFICULTY_OPTIONS.map((opt) => {
+              const active = difficulty === opt.key;
+              return (
+                <TouchableOpacity
+                  key={opt.key}
+                  onPress={() => setDifficulty(opt.key)}
+                  activeOpacity={0.8}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    padding: 18,
+                    borderRadius: 16,
+                    backgroundColor: active ? opt.color + "15" : "#fff",
+                    borderWidth: 2,
+                    borderColor: active ? opt.color : "#E2E8F0",
+                    gap: 14,
+                  }}
+                >
+                  <Text style={{ fontSize: 28 }}>{opt.emoji}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        fontWeight: "800",
+                        fontSize: 16,
+                        color: active ? opt.color : "#111",
+                      }}
+                    >
+                      {opt.label}
+                    </Text>
+                    <Text
+                      style={{ fontSize: 13, color: "#64748B", marginTop: 2 }}
+                    >
+                      {opt.desc}
+                    </Text>
+                  </View>
+                  {active && (
+                    <View
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: 11,
+                        backgroundColor: opt.color,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Check size={13} color="#fff" strokeWidth={3} />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {error && (
+            <View
+              style={{
+                backgroundColor: "#FEF2F2",
+                borderRadius: 12,
+                padding: 14,
+                marginBottom: 16,
+              }}
+            >
+              <Text style={{ color: "#DC2626", fontSize: 13 }}>{error}</Text>
+            </View>
           )}
-        </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleStart}
+            disabled={starting}
+            activeOpacity={0.85}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              paddingVertical: 18,
+              borderRadius: 16,
+              backgroundColor: starting ? "#94A3B8" : accentColor,
+              gap: 10,
+              shadowColor: accentColor,
+              shadowOpacity: starting ? 0 : 0.4,
+              shadowRadius: 14,
+              shadowOffset: { width: 0, height: 6 },
+              elevation: 6,
+            }}
+          >
+            {starting ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Zap size={20} color="#fff" strokeWidth={2.5} />
+                <Text
+                  style={{ color: "#fff", fontWeight: "800", fontSize: 17 }}
+                >
+                  เริ่มทำแบบทดสอบ
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // ── Playing screen ──
+  if (phase === "playing") {
+    const q = questions[currentQ];
+    const choices: string[] = q.choices ?? q.options ?? [];
+    const answerKey: string = q.key ?? q.answer ?? "";
+    const correctIdx: number =
+      typeof answerKey === "number" ? answerKey : choices.indexOf(answerKey);
+    const questionText: string = q.title ?? q.question ?? q.text ?? q.q ?? "";
+    const diffOpt = DIFFICULTY_OPTIONS.find((d) => d.key === difficulty)!;
+
+    return (
+      <View style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
+        <Stack.Screen options={{ headerShown: false }} />
+        {/* Header — no back button once exam starts */}
+        <View
+          style={{
+            backgroundColor: accentColor,
+            paddingTop: insetTop,
+            paddingBottom: 14,
+            paddingHorizontal: 16,
+          }}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingTop: 8,
+            }}
+          >
+            <View>
+              <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>
+                ข้อ {currentQ + 1} / {questions.length}
+              </Text>
+              <Text
+                style={{
+                  color: "rgba(255,255,255,0.7)",
+                  fontSize: 12,
+                  marginTop: 1,
+                }}
+              >
+                {diffOpt.emoji} {diffOpt.label}
+              </Text>
+            </View>
+            {/* Score so far */}
+            <View
+              style={{
+                backgroundColor: "rgba(255,255,255,0.18)",
+                borderRadius: 20,
+                paddingHorizontal: 14,
+                paddingVertical: 6,
+              }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>
+                ถูก {answers.filter(Boolean).length} ข้อ
+              </Text>
+            </View>
+          </View>
+          {/* Progress bar */}
+          <View
+            style={{
+              marginTop: 12,
+              height: 5,
+              backgroundColor: "rgba(255,255,255,0.25)",
+              borderRadius: 3,
+            }}
+          >
+            <View
+              style={{
+                height: 5,
+                borderRadius: 3,
+                backgroundColor: "#fff",
+                width: `${((currentQ + 1) / questions.length) * 100}%`,
+              }}
+            />
+          </View>
+        </View>
+
+        <ScrollView contentContainerStyle={{ padding: 20 }}>
+          <View
+            style={{
+              backgroundColor: "#fff",
+              borderRadius: 16,
+              padding: 18,
+              marginBottom: 20,
+              borderLeftWidth: 4,
+              borderLeftColor: accentColor,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 11,
+                fontWeight: "700",
+                color: accentColor,
+                marginBottom: 8,
+                textTransform: "uppercase",
+                letterSpacing: 1,
+              }}
+            >
+              คำถามข้อที่ {currentQ + 1}
+            </Text>
+            <Text
+              style={{
+                fontSize: 17,
+                fontWeight: "700",
+                color: "#111",
+                lineHeight: 26,
+              }}
+            >
+              {questionText}
+            </Text>
+          </View>
+
+          <View style={{ gap: 12 }}>
+            {choices.map((choice, idx) => {
+              const isSelected = selected === idx;
+              const isCorrect = idx === correctIdx;
+              let bg = "#fff";
+              let border = "#E2E8F0";
+              let textColor = "#111";
+              if (selected !== null) {
+                if (isCorrect) {
+                  bg = "#F0FDF4";
+                  border = "#22C55E";
+                  textColor = "#16A34A";
+                } else if (isSelected) {
+                  bg = "#FEF2F2";
+                  border = "#EF4444";
+                  textColor = "#DC2626";
+                }
+              } else if (isSelected) {
+                bg = accentColor + "15";
+                border = accentColor;
+              }
+              return (
+                <TouchableOpacity
+                  key={idx}
+                  onPress={() => handleAnswer(idx)}
+                  activeOpacity={0.8}
+                  style={{
+                    padding: 16,
+                    borderRadius: 14,
+                    backgroundColor: bg,
+                    borderWidth: 2,
+                    borderColor: border,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 14,
+                      backgroundColor: border + "33",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontWeight: "800",
+                        fontSize: 13,
+                        color: border === "#E2E8F0" ? "#94A3B8" : border,
+                      }}
+                    >
+                      {String.fromCharCode(65 + idx)}
+                    </Text>
+                  </View>
+                  <Text
+                    style={{
+                      flex: 1,
+                      fontSize: 15,
+                      fontWeight: "600",
+                      color: textColor,
+                      lineHeight: 22,
+                    }}
+                  >
+                    {choice}
+                  </Text>
+                  {selected !== null && isCorrect && (
+                    <CheckCircle size={18} color="#22C55E" />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // ── Result screen ──
+  const correct = answers.filter(Boolean).length;
+  const total = answers.length;
+  const wrong = total - correct;
+  const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
+  const passed = pct >= 60;
+
+  return (
+    <View style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
+      <Stack.Screen options={{ headerShown: false }} />
+      {/* Header — no back until done */}
+      <View
+        style={{
+          backgroundColor: accentColor,
+          paddingTop: insetTop,
+          paddingBottom: 14,
+          paddingHorizontal: 16,
+        }}
+      >
+        <View style={{ paddingTop: 8 }}>
+          <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>
+            ผลการสอบ
+          </Text>
+          <Text
+            style={{
+              color: "rgba(255,255,255,0.7)",
+              fontSize: 12,
+              marginTop: 2,
+            }}
+          >
+            {course.title}
+          </Text>
+        </View>
+      </View>
+
+      <ScrollView contentContainerStyle={{ padding: 20 }}>
+        {/* Main score card */}
+        <View
+          style={{
+            backgroundColor: "#fff",
+            borderRadius: 24,
+            padding: 28,
+            alignItems: "center",
+            marginBottom: 16,
+          }}
+        >
+          <Text style={{ fontSize: 56, marginBottom: 6 }}>
+            {passed ? "🎉" : "📚"}
+          </Text>
+          <Text
+            style={{
+              fontSize: 48,
+              fontWeight: "900",
+              color: passed ? "#16A34A" : "#DC2626",
+              lineHeight: 56,
+            }}
+          >
+            {pct}%
+          </Text>
+          <Text
+            style={{
+              fontSize: 15,
+              fontWeight: "700",
+              color: passed ? "#16A34A" : "#DC2626",
+              marginTop: 4,
+            }}
+          >
+            {passed ? "✅ ผ่านแบบทดสอบ" : "❌ ยังไม่ผ่าน (ต้องได้ ≥ 60%)"}
+          </Text>
+
+          {/* Score bar */}
+          <View
+            style={{
+              width: "100%",
+              height: 10,
+              backgroundColor: "#E2E8F0",
+              borderRadius: 5,
+              marginTop: 20,
+              marginBottom: 20,
+            }}
+          >
+            <View
+              style={{
+                height: 10,
+                borderRadius: 5,
+                backgroundColor: passed ? "#22C55E" : "#EF4444",
+                width: `${pct}%`,
+              }}
+            />
+          </View>
+
+          {/* Stat row */}
+          <View style={{ flexDirection: "row", gap: 12, width: "100%" }}>
+            <View
+              style={{
+                flex: 1,
+                backgroundColor: "#F0FDF4",
+                borderRadius: 14,
+                padding: 14,
+                alignItems: "center",
+              }}
+            >
+              <Text
+                style={{ fontSize: 26, fontWeight: "900", color: "#16A34A" }}
+              >
+                {correct}
+              </Text>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: "#16A34A",
+                  fontWeight: "600",
+                  marginTop: 2,
+                }}
+              >
+                ตอบถูก
+              </Text>
+            </View>
+            <View
+              style={{
+                flex: 1,
+                backgroundColor: "#FEF2F2",
+                borderRadius: 14,
+                padding: 14,
+                alignItems: "center",
+              }}
+            >
+              <Text
+                style={{ fontSize: 26, fontWeight: "900", color: "#DC2626" }}
+              >
+                {wrong}
+              </Text>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: "#DC2626",
+                  fontWeight: "600",
+                  marginTop: 2,
+                }}
+              >
+                ตอบผิด
+              </Text>
+            </View>
+            <View
+              style={{
+                flex: 1,
+                backgroundColor: "#F8FAFC",
+                borderRadius: 14,
+                padding: 14,
+                alignItems: "center",
+                borderWidth: 1,
+                borderColor: "#E2E8F0",
+              }}
+            >
+              <Text
+                style={{ fontSize: 26, fontWeight: "900", color: "#475569" }}
+              >
+                {total}
+              </Text>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: "#475569",
+                  fontWeight: "600",
+                  marginTop: 2,
+                }}
+              >
+                ทั้งหมด
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Submitting status */}
+        {submitting ? (
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 10,
+              backgroundColor: "#fff",
+              borderRadius: 14,
+              padding: 14,
+              marginBottom: 16,
+            }}
+          >
+            <ActivityIndicator size="small" color={accentColor} />
+            <Text style={{ color: "#475569", fontSize: 13, fontWeight: "600" }}>
+              กำลังบันทึกผลการสอบ...
+            </Text>
+          </View>
+        ) : (
+          <View style={{ gap: 10 }}>
+            <TouchableOpacity
+              onPress={() => {
+                setPhase("select");
+                setSelected(null);
+                setAnswers([]);
+                setCurrentQ(0);
+              }}
+              activeOpacity={0.85}
+              style={{
+                paddingVertical: 16,
+                borderRadius: 16,
+                backgroundColor: accentColor,
+                alignItems: "center",
+                flexDirection: "row",
+                justifyContent: "center",
+                gap: 8,
+              }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>
+                ทำใหม่อีกครั้ง
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={onBack}
+              activeOpacity={0.85}
+              style={{
+                paddingVertical: 16,
+                borderRadius: 16,
+                backgroundColor: "#F1F5F9",
+                alignItems: "center",
+              }}
+            >
+              <Text
+                style={{ color: "#475569", fontWeight: "700", fontSize: 16 }}
+              >
+                กลับหน้าคอร์ส
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -217,20 +1347,63 @@ export default function VideoScreen() {
   const [error, setError] = useState<string | null>(null);
   const [enrolling, setEnrolling] = useState(false);
   const [enrolled, setEnrolled] = useState(false);
+  const [isDownloaded, setIsDownloaded] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [watchProgress, setWatchProgress] = useState<number>(0);
+
+  const ENROLL_KEY = `@enrolled_${id}`;
 
   useEffect(() => {
     if (!id) return;
     (async () => {
       try {
         setLoading(true);
-        const token = await getToken();
-        const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
-        const res = await fetch(`${apiBase}/courses/${id}`, {
-          headers: token ? { authorization: `Bearer ${token}` } : {},
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        setCourse(data);
+
+        // Restore cached enrolled state first (works offline)
+        const AsyncStorage = (
+          await import("@react-native-async-storage/async-storage")
+        ).default;
+        const cachedEnrolled = await AsyncStorage.getItem(ENROLL_KEY);
+        if (cachedEnrolled === "1") setEnrolled(true);
+
+        // Check downloaded & progress from local storage
+        const downloaded = await isCourseDownloaded(id);
+        setIsDownloaded(downloaded);
+        const progress = await getVideoProgress(id);
+        if (progress) setWatchProgress(progress.percentage);
+
+        // Fetch course data (may fail offline)
+        try {
+          const token = await getToken();
+          const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
+          const res = await fetch(`${apiBase}/courses/${id}`, {
+            headers: token ? { authorization: `Bearer ${token}` } : {},
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          setCourse(data);
+        } catch (fetchErr) {
+          // Offline: try to build minimal course from download index
+          const { getDownloadedCourses } =
+            await import("@/lib/offline/downloadManager");
+          const cached = await getDownloadedCourses();
+          const cachedCourse = cached.find((c) => c.id === id);
+          if (cachedCourse) {
+            setCourse({
+              id: cachedCourse.id,
+              title: cachedCourse.title,
+              decs: "",
+              subject: "",
+              class: 0,
+              by: "",
+              courseURL: cachedCourse.localUri,
+              thumbnailURL: cachedCourse.thumbnailUri,
+            });
+          } else {
+            throw fetchErr;
+          }
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : "โหลดข้อมูลไม่ได้");
       } finally {
@@ -238,6 +1411,64 @@ export default function VideoScreen() {
       }
     })();
   }, [id]);
+
+  const handleDownload = async () => {
+    if (!course || !course.courseURL) return;
+
+    setDownloading(true);
+    setDownloadProgress(0);
+
+    try {
+      await downloadCourse(
+        course.id,
+        course.title,
+        course.courseURL,
+        course.thumbnailURL,
+        (progress) => {
+          setDownloadProgress(progress);
+        },
+      );
+
+      setIsDownloaded(true);
+      Alert.alert(
+        "สำเร็จ! 🎉",
+        "ดาวน์โหลดวิดีโอเสร็จแล้ว สามารถดูแบบ offline ได้",
+      );
+    } catch (e) {
+      Alert.alert(
+        "เกิดข้อผิดพลาด",
+        e instanceof Error ? e.message : "ดาวน์โหลดไม่สำเร็จ",
+      );
+    } finally {
+      setDownloading(false);
+      setDownloadProgress(0);
+    }
+  };
+
+  const handleDeleteDownload = async () => {
+    if (!course) return;
+
+    Alert.alert(
+      "ลบไฟล์ดาวน์โหลด?",
+      "คุณต้องการลบวิดีโอที่ดาวน์โหลดไว้หรือไม่?",
+      [
+        { text: "ยกเลิก", style: "cancel" },
+        {
+          text: "ลบ",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteCourse(course.id);
+              setIsDownloaded(false);
+              Alert.alert("สำเร็จ", "ลบไฟล์ดาวน์โหลดแล้ว");
+            } catch (e) {
+              Alert.alert("เกิดข้อผิดพลาด", "ลบไฟล์ไม่สำเร็จ");
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const handleEnroll = async () => {
     setEnrolling(true);
@@ -261,6 +1492,11 @@ export default function VideoScreen() {
         throw new Error((err as any).message ?? `HTTP ${res.status}`);
       }
       setEnrolled(true);
+      // Persist enrolled state so it survives app restarts and offline mode
+      const AsyncStorage = (
+        await import("@react-native-async-storage/async-storage")
+      ).default;
+      await AsyncStorage.setItem(ENROLL_KEY, "1");
     } catch (e) {
       Alert.alert(
         "เกิดข้อผิดพลาด",
@@ -276,14 +1512,32 @@ export default function VideoScreen() {
     : Palette.primary;
   const displayTitle = course?.title ?? courseTitle ?? "คอร์สเรียน";
 
+  // Refresh watchProgress when returning from player
+  const handlePlayerBack = async () => {
+    const progress = await getVideoProgress(id);
+    if (progress) setWatchProgress(progress.percentage);
+    setPhase("preview");
+  };
+
   if (phase === "player" && course) {
     return (
       <CoursePlayer
         course={course}
         accentColor={accentColor}
         insetTop={insets.top}
-        onBack={() => setPhase("preview")}
+        onBack={handlePlayerBack}
         onDone={() => router.back()}
+      />
+    );
+  }
+
+  if (phase === "quiz" && course) {
+    return (
+      <QuizScreen
+        course={course}
+        accentColor={accentColor}
+        insetTop={insets.top}
+        onBack={() => setPhase("preview")}
       />
     );
   }
@@ -292,57 +1546,58 @@ export default function VideoScreen() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <View className="flex-1 bg-surface-alt">
-        {/* Gradient Header */}
-        <View className="relative" style={{ height: 160 + insets.top }}>
-          <Svg
-            style={{ position: "absolute", top: 0, left: 0, right: 0 }}
-            width="100%"
-            height={160 + insets.top}
-          >
-            <Defs>
-              <LinearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
-                <Stop offset="0" stopColor={accentColor} />
-                <Stop offset="1" stopColor={accentColor + "AA"} />
-              </LinearGradient>
-            </Defs>
-            <Rect
-              width="100%"
-              height={160 + insets.top}
-              fill={`url(#${gradientId})`}
-            />
-          </Svg>
-          <View style={{ paddingTop: insets.top + 8 }} className="px-5 pb-5">
-            <View className="flex-row items-center">
-              <TouchableOpacity
-                onPress={() => router.back()}
-                className="w-10 h-10 rounded-full bg-white/20 items-center justify-center mr-3"
-                activeOpacity={0.7}
+        {/* Compact Header */}
+        <View
+          style={{
+            backgroundColor: accentColor,
+            paddingTop: insets.top,
+            paddingBottom: 12,
+            paddingHorizontal: 16,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                backgroundColor: "rgba(255,255,255,0.2)",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              activeOpacity={0.7}
+            >
+              <ArrowLeft size={18} color="white" strokeWidth={2.5} />
+            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}
+                numberOfLines={1}
               >
-                <ArrowLeft size={20} color="white" strokeWidth={2.5} />
-              </TouchableOpacity>
-              <View className="flex-1">
+                {displayTitle}
+              </Text>
+              {course && course.subject ? (
                 <Text
-                  className="text-xl font-black text-white"
-                  numberOfLines={1}
+                  style={{
+                    color: "rgba(255,255,255,0.75)",
+                    fontSize: 12,
+                    marginTop: 1,
+                  }}
                 >
-                  {displayTitle}
+                  {course.subject}
+                  {course.class ? ` · ม.${course.class}` : ""}
+                  {course.by ? ` · ${course.by}` : ""}
                 </Text>
-                {course && (
-                  <Text className="text-sm text-white/80">
-                    {course.subject} · ม.{course.class}
-                    {course.by ? ` · โดย ${course.by}` : ""}
-                  </Text>
-                )}
-              </View>
+              ) : null}
             </View>
           </View>
         </View>
 
         <ScrollView
           className="flex-1 px-5"
-          style={{ marginTop: -8 }}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 40 }}
+          contentContainerStyle={{ paddingBottom: 40, paddingTop: 12 }}
         >
           {loading ? (
             <View className="items-center py-20">
@@ -366,58 +1621,107 @@ export default function VideoScreen() {
             </View>
           ) : course ? (
             <>
-              {/* Thumbnail — tap to play */}
-              <TouchableOpacity
-                onPress={() =>
-                  course.courseURL ? setPhase("player") : undefined
-                }
-                activeOpacity={course.courseURL ? 0.85 : 1}
-                className="rounded-2xl overflow-hidden mt-4 mb-4"
-                style={cardShadow}
-              >
-                {course.thumbnailURL ? (
-                  <View>
+              {/* Thumbnail */}
+              <View className="mt-4 mb-4" style={cardShadow}>
+                <View className="rounded-2xl overflow-hidden">
+                  {/* Base image or placeholder */}
+                  {course.thumbnailURL ? (
                     <Image
                       source={{ uri: course.thumbnailURL }}
-                      style={{ width: "100%", height: 210 }}
+                      style={{ width: "100%", height: 200 }}
                       contentFit="cover"
                     />
-                    {course.courseURL && (
+                  ) : (
+                    <View
+                      style={{
+                        height: 200,
+                        backgroundColor: accentColor + "18",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Play size={52} color={accentColor} strokeWidth={1.5} />
+                    </View>
+                  )}
+
+                  {/* Overlay play button - only shows when enrolled AND downloaded */}
+                  {enrolled && isDownloaded && (
+                    <TouchableOpacity
+                      onPress={() => setPhase("player")}
+                      activeOpacity={0.85}
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        backgroundColor: "rgba(0,0,0,0.35)",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
                       <View
                         style={{
-                          position: "absolute",
-                          inset: 0,
+                          width: 64,
+                          height: 64,
+                          borderRadius: 32,
+                          backgroundColor: "rgba(255,255,255,0.92)",
                           alignItems: "center",
                           justifyContent: "center",
-                          backgroundColor: "rgba(0,0,0,0.25)",
+                          shadowColor: "#000",
+                          shadowOpacity: 0.3,
+                          shadowRadius: 8,
+                          shadowOffset: { width: 0, height: 4 },
+                          elevation: 6,
                         }}
                       >
+                        <Play
+                          size={28}
+                          color={accentColor}
+                          strokeWidth={2.5}
+                          style={{ marginLeft: 3 }}
+                        />
+                      </View>
+                      {watchProgress > 0 && watchProgress < 100 && (
                         <View
                           style={{
-                            width: 64,
-                            height: 64,
-                            borderRadius: 32,
-                            backgroundColor: "rgba(255,255,255,0.9)",
-                            alignItems: "center",
-                            justifyContent: "center",
+                            position: "absolute",
+                            bottom: 12,
+                            left: 12,
+                            right: 12,
                           }}
                         >
-                          <Play size={28} color={accentColor} strokeWidth={2} />
+                          <Text
+                            style={{
+                              color: "#fff",
+                              fontSize: 12,
+                              fontWeight: "600",
+                              marginBottom: 4,
+                            }}
+                          >
+                            ดูต่อ - {Math.round(watchProgress)}%
+                          </Text>
+                          <View
+                            style={{
+                              height: 4,
+                              backgroundColor: "rgba(255,255,255,0.3)",
+                              borderRadius: 2,
+                            }}
+                          >
+                            <View
+                              style={{
+                                height: 4,
+                                width: `${watchProgress}%`,
+                                backgroundColor: "#fff",
+                                borderRadius: 2,
+                              }}
+                            />
+                          </View>
                         </View>
-                      </View>
-                    )}
-                  </View>
-                ) : (
-                  <View
-                    className="items-center justify-center"
-                    style={{ height: 180, backgroundColor: accentColor + "18" }}
-                  >
-                    <Play size={56} color={accentColor} strokeWidth={1.5} />
-                  </View>
-                )}
-              </TouchableOpacity>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
 
-              {/* Title & Decs */}
+              {/* Course Info Card */}
               <View
                 className="bg-surface rounded-2xl p-5 mb-4"
                 style={cardShadow}
@@ -433,77 +1737,269 @@ export default function VideoScreen() {
                 {course.decs ? (
                   <>
                     <View className="h-px bg-edge-light mb-3" />
-                    <Text className="text-sm text-brand-secondary leading-6">
+                    <Text className="text-sm text-brand-secondary leading-6 mb-4">
                       {course.decs}
                     </Text>
                   </>
                 ) : null}
-              </View>
 
-              {/* Actions */}
-              <View style={{ gap: 10 }}>
-                {/* Enroll */}
-                <TouchableOpacity
-                  onPress={handleEnroll}
-                  disabled={enrolling || enrolled}
-                  className="flex-row items-center justify-center py-4 rounded-2xl"
-                  style={{
-                    backgroundColor: enrolled ? "#22C55E" : accentColor,
-                    opacity: enrolling ? 0.7 : 1,
-                  }}
-                  activeOpacity={0.8}
-                >
-                  {enrolling ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : enrolled ? (
-                    <>
-                      <CheckCircle size={18} color="#fff" />
-                      <Text className="text-white font-bold ml-2">
+                {/* ===== Action Buttons ===== */}
+                <View style={{ gap: 10 }}>
+                  {/* Enroll button or enrolled badge */}
+                  {!enrolled ? (
+                    <TouchableOpacity
+                      onPress={handleEnroll}
+                      disabled={enrolling}
+                      activeOpacity={0.85}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        paddingVertical: 16,
+                        borderRadius: 16,
+                        backgroundColor: accentColor,
+                        opacity: enrolling ? 0.7 : 1,
+                        shadowColor: accentColor,
+                        shadowOpacity: 0.4,
+                        shadowRadius: 12,
+                        shadowOffset: { width: 0, height: 5 },
+                        elevation: 5,
+                      }}
+                    >
+                      {enrolling ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <Text style={{ fontSize: 18, marginRight: 8 }}>
+                            🎓
+                          </Text>
+                          <Text
+                            style={{
+                              color: "#fff",
+                              fontWeight: "800",
+                              fontSize: 16,
+                              letterSpacing: 0.3,
+                            }}
+                          >
+                            ลงทะเบียนเรียน
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  ) : (
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingVertical: 12,
+                        paddingHorizontal: 16,
+                        borderRadius: 14,
+                        backgroundColor: "#F0FDF4",
+                        borderWidth: 1.5,
+                        borderColor: "#86EFAC",
+                      }}
+                    >
+                      <Check size={18} color="#22C55E" strokeWidth={3} />
+                      <Text
+                        style={{
+                          color: "#16A34A",
+                          fontWeight: "700",
+                          marginLeft: 8,
+                          fontSize: 15,
+                        }}
+                      >
                         ลงทะเบียนแล้ว
                       </Text>
-                    </>
-                  ) : (
-                    <>
-                      <UserCheck size={18} color="#fff" />
-                      <Text className="text-white font-bold ml-2">Enroll</Text>
-                    </>
+                    </View>
                   )}
-                </TouchableOpacity>
 
-                {/* Watch video */}
-                {course.courseURL && (
-                  <TouchableOpacity
-                    onPress={() => setPhase("player")}
-                    className="flex-row items-center justify-center py-4 rounded-2xl border-2"
-                    style={{ borderColor: accentColor }}
-                    activeOpacity={0.8}
-                  >
-                    <Play size={18} color={accentColor} />
-                    <Text
-                      className="font-bold ml-2"
-                      style={{ color: accentColor }}
+                  {/* Download button - shown after enroll, hidden once downloaded */}
+                  {enrolled && course.courseURL && !isDownloaded && (
+                    <TouchableOpacity
+                      onPress={handleDownload}
+                      disabled={downloading}
+                      activeOpacity={0.85}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        paddingVertical: 16,
+                        borderRadius: 16,
+                        backgroundColor: "#059669",
+                        opacity: downloading ? 0.85 : 1,
+                        shadowColor: "#059669",
+                        shadowOpacity: 0.35,
+                        shadowRadius: 12,
+                        shadowOffset: { width: 0, height: 5 },
+                        elevation: 5,
+                      }}
                     >
-                      เล่นวิดีโอ
+                      {downloading ? (
+                        <>
+                          <ActivityIndicator size="small" color="#fff" />
+                          <Text
+                            style={{
+                              color: "#fff",
+                              fontWeight: "800",
+                              fontSize: 16,
+                              marginLeft: 10,
+                            }}
+                          >
+                            กำลังดาวน์โหลด...{" "}
+                            {Math.round(downloadProgress * 100)}%
+                          </Text>
+                        </>
+                      ) : (
+                        <>
+                          <Text style={{ fontSize: 18, marginRight: 8 }}>
+                            ⬇️
+                          </Text>
+                          <Text
+                            style={{
+                              color: "#fff",
+                              fontWeight: "800",
+                              fontSize: 16,
+                              letterSpacing: 0.3,
+                            }}
+                          >
+                            ดาวน์โหลดวิดีโอ (Offline)
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
+
+                  {/* Download progress bar */}
+                  {downloading && (
+                    <View style={{ paddingHorizontal: 2 }}>
+                      <View
+                        style={{
+                          height: 6,
+                          backgroundColor: "#D1FAE5",
+                          borderRadius: 3,
+                          overflow: "hidden",
+                        }}
+                      >
+                        <View
+                          style={{
+                            height: 6,
+                            width: `${downloadProgress * 100}%`,
+                            backgroundColor: "#10B981",
+                            borderRadius: 3,
+                          }}
+                        />
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Downloaded badge */}
+                  {enrolled && isDownloaded && (
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingVertical: 10,
+                        paddingHorizontal: 16,
+                        borderRadius: 12,
+                        backgroundColor: "#ECFDF5",
+                        borderWidth: 1,
+                        borderColor: "#A7F3D0",
+                      }}
+                    >
+                      <Check size={16} color="#059669" strokeWidth={3} />
+                      <Text
+                        style={{
+                          color: "#059669",
+                          fontWeight: "600",
+                          marginLeft: 8,
+                          fontSize: 13,
+                        }}
+                      >
+                        ดาวน์โหลดแล้ว · กดที่รูปด้านบนเพื่อเล่น
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* ── Quiz Card ── */}
+              {enrolled && (
+                <View
+                  style={[
+                    cardShadow,
+                    {
+                      backgroundColor: "#fff",
+                      borderRadius: 20,
+                      padding: 20,
+                      marginTop: 4,
+                      borderLeftWidth: 4,
+                      borderLeftColor: "#8B5CF6",
+                    },
+                  ]}
+                >
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      marginBottom: 10,
+                      gap: 10,
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 19,
+                        backgroundColor: "#8B5CF615",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <ClipboardList
+                        size={20}
+                        color="#8B5CF6"
+                        strokeWidth={2}
+                      />
+                    </View>
+                    <View>
+                      <Text
+                        style={{
+                          fontWeight: "800",
+                          fontSize: 15,
+                          color: "#111",
+                        }}
+                      >
+                        แบบทดสอบ
+                      </Text>
+                      <Text
+                        style={{ fontSize: 12, color: "#64748B", marginTop: 1 }}
+                      >
+                        เลือกระดับความยาก แล้วเริ่มสอบได้เลย
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setPhase("quiz")}
+                    activeOpacity={0.85}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      paddingVertical: 14,
+                      borderRadius: 14,
+                      backgroundColor: "#8B5CF6",
+                      gap: 8,
+                    }}
+                  >
+                    <Zap size={18} color="#fff" strokeWidth={2.5} />
+                    <Text
+                      style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}
+                    >
+                      เริ่มทำแบบทดสอบ
                     </Text>
                   </TouchableOpacity>
-                )}
-
-                {/* Quiz */}
-                <TouchableOpacity
-                  onPress={() =>
-                    router.push({
-                      pathname: "/exam/[id]",
-                      params: { id, courseTitle: course.title },
-                    } as any)
-                  }
-                  className="flex-row items-center justify-center py-4 rounded-2xl"
-                  style={{ backgroundColor: "#8B5CF6" }}
-                  activeOpacity={0.8}
-                >
-                  <ClipboardList size={18} color="#fff" />
-                  <Text className="text-white font-bold ml-2">ทำแบบทดสอบ</Text>
-                </TouchableOpacity>
-              </View>
+                </View>
+              )}
             </>
           ) : null}
         </ScrollView>

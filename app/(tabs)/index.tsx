@@ -1,10 +1,18 @@
 import { Palette } from "@/constants/theme";
 import { getJwt } from "@/lib/auth/token";
 import { Image } from "expo-image";
-import { BookOpen, ClipboardList, RefreshCw, User } from "lucide-react-native";
+import { useRouter } from "expo-router";
+import {
+    BookOpen,
+    ChevronRight,
+    GraduationCap,
+    RefreshCw,
+    User,
+} from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
+    Platform,
     ScrollView,
     Text,
     TouchableOpacity,
@@ -22,8 +30,28 @@ interface ApiUser {
   room?: number;
 }
 
+const cardShadow = Platform.select({
+  ios: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+  },
+  android: { elevation: 3 },
+  default: {},
+});
+
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "อรุณสวัสดิ์ 🌅";
+  if (h < 17) return "สวัสดีตอนบ่าย ☀️";
+  if (h < 20) return "สวัสดีตอนเย็น 🌆";
+  return "สวัสดีตอนค่ำ 🌙";
+}
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [user, setUser] = useState<ApiUser | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -39,10 +67,7 @@ export default function HomeScreen() {
       const res = await fetch(`${apiBase}/users/get`, {
         headers: { authorization: `Bearer ${token}` },
       });
-      if (res.ok) {
-        const data = await res.json();
-        setUser(data);
-      }
+      if (res.ok) setUser(await res.json());
     } catch {
       /* silent */
     } finally {
@@ -57,18 +82,18 @@ export default function HomeScreen() {
   const displayName = user?.displayName ?? user?.name ?? "ผู้ใช้";
   const gradeText = user?.sclass ? `ม.${user.sclass}` : null;
   const roomText = user?.room ? `ห้อง ${user.room}` : null;
+  const fullName =
+    [user?.name, user?.surname].filter(Boolean).join(" ") || null;
 
   return (
     <ScrollView
-      className="flex-1 bg-surface-alt"
-      contentContainerStyle={{ paddingBottom: 40 }}
+      style={{ flex: 1, backgroundColor: "#F8FAFC" }}
+      contentContainerStyle={{ paddingBottom: 48 }}
       showsVerticalScrollIndicator={false}
     >
-      {/* Gradient header */}
-      <View
-        className="overflow-hidden rounded-b-4xl min-h-[260px]"
-        style={{ paddingTop: insets.top }}
-      >
+      {/* ── Twitter-style Profile Header ── */}
+      {/* Banner */}
+      <View style={{ height: 120 + insets.top, overflow: "hidden" }}>
         <Svg
           style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
           width="100%"
@@ -76,7 +101,7 @@ export default function HomeScreen() {
           preserveAspectRatio="none"
         >
           <Defs>
-            <LinearGradient id="hg" x1="0" y1="0" x2="0.3" y2="1">
+            <LinearGradient id="hg" x1="0" y1="0" x2="1" y2="1">
               <Stop offset="0" stopColor={Palette.gradientStart} />
               <Stop offset="0.5" stopColor={Palette.gradientMid} />
               <Stop offset="1" stopColor={Palette.gradientEnd} />
@@ -84,158 +109,247 @@ export default function HomeScreen() {
           </Defs>
           <Rect x="0" y="0" width="100%" height="100%" fill="url(#hg)" />
         </Svg>
+        {/* Refresh button top-right */}
+        <TouchableOpacity
+          onPress={fetchUser}
+          style={{
+            position: "absolute",
+            top: insets.top + 10,
+            right: 16,
+            padding: 8,
+            borderRadius: 20,
+            backgroundColor: "rgba(0,0,0,0.25)",
+          }}
+          activeOpacity={0.7}
+        >
+          <RefreshCw size={14} color="#fff" strokeWidth={2.5} />
+        </TouchableOpacity>
+      </View>
 
-        <View className="items-center py-7">
-          {/* Avatar */}
-          <View className="w-[110px] h-[110px] rounded-full border-[3px] border-white/35 justify-center items-center">
-            <View className="w-24 h-24 rounded-full bg-white/15 border-[3px] border-white overflow-hidden justify-center items-center">
-              {user?.avatarURL ? (
-                <Image
-                  source={{ uri: user.avatarURL }}
-                  style={{ width: 96, height: 96 }}
-                  contentFit="cover"
-                />
-              ) : (
-                <User
-                  size={44}
-                  color="rgba(255,255,255,0.9)"
-                  strokeWidth={1.5}
-                />
-              )}
-            </View>
+      {/* Profile row — avatar overlaps banner, name below */}
+      <View style={{ backgroundColor: "#fff", paddingBottom: 16 }}>
+        {/* Avatar — positioned to overlap banner by half */}
+        <View style={{ paddingHorizontal: 16, marginTop: -44 }}>
+          <View
+            style={{
+              width: 95,
+              height: 95,
+              borderRadius: 44,
+              borderWidth: 4,
+              borderColor: "#fff",
+              backgroundColor: "#E2E8F0",
+              overflow: "hidden",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {user?.avatarURL ? (
+              <Image
+                source={{ uri: user.avatarURL }}
+                style={{ width: 88, height: 88 }}
+                contentFit="cover"
+              />
+            ) : (
+              <User size={44} color="#94A3B8" strokeWidth={1.5} />
+            )}
           </View>
+        </View>
 
+        {/* Name + info */}
+        <View style={{ paddingHorizontal: 16, marginTop: 10 }}>
           {loading ? (
-            <ActivityIndicator color="white" style={{ marginTop: 16 }} />
+            <ActivityIndicator color={Palette.primary} />
           ) : (
             <>
-              <Text className="mt-3.5 text-[26px] font-extrabold text-white tracking-wide">
+              <Text
+                style={{
+                  fontSize: 22,
+                  fontWeight: "900",
+                  color: "#0F172A",
+                  letterSpacing: 0.2,
+                }}
+                numberOfLines={1}
+              >
                 {displayName}
               </Text>
+              {fullName && fullName !== displayName && (
+                <Text style={{ fontSize: 14, color: "#64748B", marginTop: 2 }}>
+                  {fullName}
+                </Text>
+              )}
               {(gradeText || roomText) && (
-                <View
-                  className="flex-row items-center mt-3 bg-white/15 rounded-2xl px-6 py-2"
-                  style={{ gap: 0 }}
-                >
+                <View style={{ flexDirection: "row", gap: 12, marginTop: 6 }}>
                   {gradeText && (
-                    <View className="items-center px-3">
-                      <Text className="text-lg font-bold text-white">
-                        {gradeText}
-                      </Text>
-                      <Text className="text-[11px] text-white/70 mt-0.5">
-                        ชั้นเรียน
-                      </Text>
-                    </View>
-                  )}
-                  {gradeText && roomText && (
-                    <View className="w-px h-7 bg-white/30" />
+                    <Text style={{ fontSize: 13, color: "#64748B" }}>
+                      📚 {gradeText}
+                    </Text>
                   )}
                   {roomText && (
-                    <View className="items-center px-3">
-                      <Text className="text-lg font-bold text-white">
-                        {roomText}
-                      </Text>
-                      <Text className="text-[11px] text-white/70 mt-0.5">
-                        ห้องเรียน
-                      </Text>
-                    </View>
+                    <Text style={{ fontSize: 13, color: "#64748B" }}>
+                      🏫 {roomText}
+                    </Text>
                   )}
                 </View>
               )}
+              <Text style={{ fontSize: 12, color: "#94A3B8", marginTop: 6 }}>
+                {getGreeting()}
+              </Text>
             </>
           )}
-
-          {/* Refresh */}
-          <TouchableOpacity
-            onPress={fetchUser}
-            className="mt-3 p-2 rounded-full bg-white/10"
-            activeOpacity={0.7}
-          >
-            <RefreshCw
-              size={14}
-              color="rgba(255,255,255,0.7)"
-              strokeWidth={2}
-            />
-          </TouchableOpacity>
         </View>
       </View>
 
-      {/* Quick actions */}
-      <View className="px-5 mt-6">
-        <Text className="text-[17px] font-bold text-brand-text mb-4">
-          เริ่มต้นเรียน
+      {/* Separator */}
+      <View style={{ height: 8, backgroundColor: "#F1F5F9" }} />
+
+      {/* ── Quick Actions ── */}
+      <View style={{ paddingHorizontal: 20, marginTop: 24 }}>
+        <Text
+          style={{
+            fontSize: 15,
+            fontWeight: "800",
+            color: "#111",
+            marginBottom: 12,
+          }}
+        >
+          เมนูหลัก
         </Text>
-        <View className="flex-row" style={{ gap: 12 }}>
+        <TouchableOpacity
+          onPress={() => router.push("/(tabs)/explore")}
+          activeOpacity={0.82}
+          style={[
+            cardShadow,
+            {
+              backgroundColor: "#fff",
+              borderRadius: 18,
+              padding: 18,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 16,
+              marginBottom: 12,
+            },
+          ]}
+        >
           <View
-            className="flex-1 rounded-2xl p-5 items-center"
-            style={{ backgroundColor: Palette.primary + "12" }}
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 14,
+              backgroundColor: Palette.primary + "15",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
           >
-            <View
-              className="w-12 h-12 rounded-2xl items-center justify-center mb-3"
-              style={{ backgroundColor: Palette.primary + "20" }}
-            >
-              <BookOpen size={24} color={Palette.primary} strokeWidth={2} />
-            </View>
-            <Text className="text-sm font-bold text-brand-text text-center">
+            <BookOpen size={24} color={Palette.primary} strokeWidth={2} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 15, fontWeight: "800", color: "#111" }}>
               บทเรียน
             </Text>
-            <Text className="text-xs text-brand-muted text-center mt-1">
-              ดูคอร์สทั้งหมด
+            <Text style={{ fontSize: 13, color: "#64748B", marginTop: 2 }}>
+              สำรวจคอร์สและวิดีโอทั้งหมด
             </Text>
           </View>
+          <ChevronRight size={18} color="#CBD5E1" strokeWidth={2} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => router.push("/(tabs)/explore")}
+          activeOpacity={0.82}
+          style={[
+            cardShadow,
+            {
+              backgroundColor: "#fff",
+              borderRadius: 18,
+              padding: 18,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 16,
+            },
+          ]}
+        >
           <View
-            className="flex-1 rounded-2xl p-5 items-center"
-            style={{ backgroundColor: "#8B5CF610" }}
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 14,
+              backgroundColor: "#8B5CF615",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
           >
-            <View
-              className="w-12 h-12 rounded-2xl items-center justify-center mb-3"
-              style={{ backgroundColor: "#8B5CF620" }}
-            >
-              <ClipboardList size={24} color="#8B5CF6" strokeWidth={2} />
-            </View>
-            <Text className="text-sm font-bold text-brand-text text-center">
+            <GraduationCap size={24} color="#8B5CF6" strokeWidth={2} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 15, fontWeight: "800", color: "#111" }}>
               แบบทดสอบ
             </Text>
-            <Text className="text-xs text-brand-muted text-center mt-1">
-              ทดสอบความรู้
+            <Text style={{ fontSize: 13, color: "#64748B", marginTop: 2 }}>
+              ทดสอบความรู้จากบทเรียน
             </Text>
           </View>
-        </View>
+          <ChevronRight size={18} color="#CBD5E1" strokeWidth={2} />
+        </TouchableOpacity>
       </View>
 
-      {/* User info card */}
+      {/* ── User info card ── */}
       {user && !loading && (
-        <View className="px-5 mt-6">
-          <Text className="text-[17px] font-bold text-brand-text mb-4">
+        <View style={{ paddingHorizontal: 20, marginTop: 24 }}>
+          <Text
+            style={{
+              fontSize: 15,
+              fontWeight: "800",
+              color: "#111",
+              marginBottom: 12,
+            }}
+          >
             ข้อมูลของฉัน
           </Text>
           <View
-            className="bg-surface rounded-2xl p-5"
-            style={{
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.06,
-              shadowRadius: 8,
-            }}
+            style={[
+              cardShadow,
+              { backgroundColor: "#fff", borderRadius: 18, overflow: "hidden" },
+            ]}
           >
             {[
+              { icon: "👤", label: "ชื่อ-สกุล", value: fullName || "-" },
               {
-                label: "ชื่อ-สกุล",
-                value:
-                  [user.name, user.surname].filter(Boolean).join(" ") || "-",
+                icon: "✏️",
+                label: "ชื่อที่แสดง",
+                value: user.displayName || "-",
               },
-              { label: "ชื่อที่แสดง", value: user.displayName || "-" },
-              { label: "ชั้นเรียน", value: gradeText || "-" },
-              { label: "ห้อง", value: roomText || "-" },
+              { icon: "📚", label: "ชั้นเรียน", value: gradeText || "-" },
+              { icon: "🏫", label: "ห้อง", value: roomText || "-" },
             ].map((row, i, arr) => (
               <View key={row.label}>
-                <View className="flex-row justify-between py-3">
-                  <Text className="text-sm text-brand-muted">{row.label}</Text>
-                  <Text className="text-sm font-semibold text-brand-text">
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingHorizontal: 18,
+                    paddingVertical: 14,
+                    gap: 12,
+                  }}
+                >
+                  <Text style={{ fontSize: 18, width: 28 }}>{row.icon}</Text>
+                  <Text style={{ flex: 1, fontSize: 14, color: "#64748B" }}>
+                    {row.label}
+                  </Text>
+                  <Text
+                    style={{ fontSize: 14, fontWeight: "700", color: "#111" }}
+                  >
                     {row.value}
                   </Text>
                 </View>
-                {i < arr.length - 1 && <View className="h-px bg-edge-light" />}
+                {i < arr.length - 1 && (
+                  <View
+                    style={{
+                      height: 1,
+                      backgroundColor: "#F1F5F9",
+                      marginHorizontal: 18,
+                    }}
+                  />
+                )}
               </View>
             ))}
           </View>
