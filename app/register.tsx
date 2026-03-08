@@ -39,15 +39,16 @@ function validatePassword(pw: string): string | null {
 export default function RegisterScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [step, setStep] = useState<"auth" | "profile">("auth");
+  const [step, setStep] = useState<"auth" | "otp" | "profile">("auth");
 
-  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const [otp, setOtp] = useState("");
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -57,10 +58,9 @@ export default function RegisterScreen() {
   const [avatarURL, setAvatarURL] = useState("https://i.pravatar.cc/512");
 
   async function handleRegister() {
-    const trimmedName = name.trim();
     const trimmedEmail = email.trim().toLowerCase();
 
-    if (!trimmedName || !trimmedEmail || !password || !confirmPassword) {
+    if (!trimmedEmail || !password || !confirmPassword) {
       Alert.alert("ข้อมูลไม่ครบ", "กรุณากรอกข้อมูลให้ครบทุกช่อง");
       return;
     }
@@ -85,27 +85,51 @@ export default function RegisterScreen() {
     const { data, error } = await supabase.auth.signUp({
       email: trimmedEmail,
       password: password,
-      options: {
-        emailRedirectTo: "sandboxedu://auth/callback",
-        data: {
-          full_name: trimmedName,
-        },
-      },
     });
+    setLoading(false);
 
     if (error) {
       Alert.alert("สมัครสมาชิกล้มเหลว", error.message);
-      setLoading(false);
     } else if (data.session) {
-      setLoading(false);
       setStep("profile");
     } else {
-      Alert.alert(
-        "ยืนยันอีเมล",
-        "กรุณาตรวจสอบอีเมลเพื่อยืนยันบัญชี จากนั้นกลับมากรอกข้อมูลโปรไฟล์",
-        [{ text: "ตรวจสอบอีเมล", onPress: () => router.replace("/login") }],
-      );
-      setLoading(false);
+      setStep("otp");
+    }
+  }
+
+  async function handleVerifyOtp() {
+    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedOtp = otp.trim();
+    if (trimmedOtp.length !== 8) {
+      Alert.alert("รหัสไม่ถูกต้อง", "กรุณากรอกรหัส 8 หลักจากอีเมล");
+      return;
+    }
+    setLoading(true);
+    const { error } = await supabase.auth.verifyOtp({
+      email: trimmedEmail,
+      token: trimmedOtp,
+      type: "signup",
+    });
+    setLoading(false);
+    if (error) {
+      Alert.alert("ยืนยันไม่สำเร็จ", error.message);
+    } else {
+      setStep("profile");
+    }
+  }
+
+  async function handleResendOtp() {
+    const trimmedEmail = email.trim().toLowerCase();
+    setLoading(true);
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: trimmedEmail,
+    });
+    setLoading(false);
+    if (error) {
+      Alert.alert("ส่งซ้ำไม่สำเร็จ", error.message);
+    } else {
+      Alert.alert("ส่งแล้ว", "กรุณาตรวจสอบอีเมลอีกครั้ง");
     }
   }
 
@@ -133,10 +157,19 @@ export default function RegisterScreen() {
 
     setLoading(true);
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) {
+        throw new Error("ไม่พบ session กรุณาล็อกอินแล้วลองใหม่");
+      }
+
       const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
       const createRes = await fetch(`${apiBase}/users/create`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           name: fn,
           surname: ln,
@@ -153,12 +186,18 @@ export default function RegisterScreen() {
 
       const revalRes = await fetch(`${apiBase}/users/revalidate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({ displayName: dn }),
       });
 
       if (!revalRes.ok) {
-        throw new Error("ไม่สามารถยืนยันตัวตนได้");
+        const revalErr = await revalRes.json().catch(() => ({}));
+        throw new Error(
+          (revalErr as any).message ?? `revalidate HTTP ${revalRes.status}`,
+        );
       }
 
       const revalData = await revalRes.json();
@@ -171,13 +210,140 @@ export default function RegisterScreen() {
       await saveJwt(jwt);
       router.replace("/(tabs)");
     } catch (e) {
-      await supabase.auth.signOut();
       Alert.alert(
         "สร้างบัญชีไม่สำเร็จ",
         e instanceof Error ? e.message : "ลองใหม่อีกครั้ง",
       );
       setLoading(false);
     }
+  }
+
+  if (step === "otp") {
+    return (
+      <KeyboardAvoidingView
+        className="flex-1 bg-surface-alt"
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={{
+            flexGrow: 1,
+            paddingBottom: insets.bottom + 20,
+          }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View
+            className="rounded-b-[40px] overflow-hidden relative"
+            style={{ height: 200 + insets.top }}
+          >
+            <Svg
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+              }}
+              width="100%"
+              height="100%"
+            >
+              <Defs>
+                <LinearGradient id="otpGrad" x1="0" y1="0" x2="1" y2="1">
+                  <Stop offset="0" stopColor={Palette.gradientStart} />
+                  <Stop offset="0.5" stopColor={Palette.gradientMid} />
+                  <Stop offset="1" stopColor={Palette.gradientEnd} />
+                </LinearGradient>
+              </Defs>
+              <Rect width="100%" height="100%" fill="url(#otpGrad)" />
+            </Svg>
+            <View
+              className="absolute inset-0 justify-center items-center"
+              style={{ paddingTop: insets.top }}
+            >
+              <View className="w-20 h-20 rounded-3xl bg-white/95 justify-center items-center mb-3 shadow-lg">
+                <Mail size={38} color={Palette.primary} strokeWidth={2} />
+              </View>
+              <Text className="text-[24px] font-extrabold text-white">
+                ยืนยันอีเมล
+              </Text>
+              <Text className="text-sm text-white/80 mt-1">
+                กรอกรหัส 8 หลักจากอีเมลของคุณ
+              </Text>
+            </View>
+          </View>
+
+          <View className="mx-6 -mt-[30px] bg-surface rounded-3xl p-7 shadow-lg">
+            <Text className="text-xl font-extrabold text-brand-text mb-1">
+              รหัสยืนยัน
+            </Text>
+            <Text className="text-sm text-brand-muted mb-2">
+              ส่งไปที่{" "}
+              <Text className="font-semibold text-brand-text">
+                {email.trim().toLowerCase()}
+              </Text>
+            </Text>
+            <Text className="text-xs text-brand-muted mb-5">
+              ตรวจสอบในกล่องจดหมาย (และ Spam) ของคุณ
+            </Text>
+
+            <View className="mb-6">
+              <Text className="text-[13px] font-semibold text-brand-secondary mb-2">
+                รหัส OTP (8 หลัก)
+              </Text>
+              <View className="flex-row items-center bg-surface-alt rounded-[14px] border border-edge px-3.5 h-[60px] gap-2.5">
+                <Hash size={20} color={Palette.textMuted} strokeWidth={2} />
+                <TextInput
+                  className="flex-1 text-[28px] font-bold text-brand-text tracking-widest"
+                  placeholder="00000000"
+                  placeholderTextColor={Palette.disabled}
+                  value={otp}
+                  onChangeText={(t) =>
+                    setOtp(t.replace(/[^0-9]/g, "").slice(0, 8))
+                  }
+                  keyboardType="number-pad"
+                  maxLength={8}
+                  autoFocus
+                />
+              </View>
+            </View>
+
+            <TouchableOpacity
+              className="bg-primary rounded-2xl h-[54px] justify-center items-center shadow-md mb-4"
+              activeOpacity={0.85}
+              onPress={handleVerifyOtp}
+              disabled={loading}
+              style={{ opacity: loading ? 0.6 : 1 }}
+            >
+              {loading ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text className="text-[17px] font-bold text-white">ยืนยัน</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleResendOtp}
+              disabled={loading}
+              className="items-center py-3"
+              activeOpacity={0.7}
+            >
+              <Text className="text-sm text-brand-muted">
+                ไม่ได้รับรหัส?{" "}
+                <Text className="font-bold text-primary">ส่งอีกครั้ง</Text>
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setStep("auth")}
+              className="items-center py-2"
+              activeOpacity={0.7}
+            >
+              <Text className="text-sm text-brand-muted">← กลับแก้ไขอีเมล</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
   }
 
   if (step === "profile") {
@@ -410,23 +576,6 @@ export default function RegisterScreen() {
           <Text className="text-sm text-brand-muted mb-6">
             กรอกข้อมูลเพื่อสร้างบัญชี
           </Text>
-
-          {/* Name */}
-          <View className="mb-4">
-            <Text className="text-[13px] font-semibold text-brand-secondary mb-2">
-              ชื่อ-นามสกุล
-            </Text>
-            <View className="flex-row items-center bg-surface-alt rounded-[14px] border border-edge px-3.5 h-[52px] gap-2.5">
-              <UserPlus size={18} color={Palette.textMuted} strokeWidth={2} />
-              <TextInput
-                className="flex-1 text-base text-brand-text"
-                placeholder="สมชาย ใจดี"
-                placeholderTextColor={Palette.disabled}
-                value={name}
-                onChangeText={setName}
-              />
-            </View>
-          </View>
 
           {/* Email */}
           <View className="mb-4">
