@@ -1,23 +1,30 @@
-import {
-    DarkTheme,
-    DefaultTheme,
-    ThemeProvider,
-} from "@react-navigation/native";
+import { AppColors } from "@/constants/colors";
+import { DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import "react-native-reanimated";
 import "../global.css";
 
-import { useColorScheme } from "@/hooks/use-color-scheme";
 import { getJwt, saveJwt } from "@/lib/auth/token";
 import { supabase } from "@/lib/supabase";
 import type { Session } from "@supabase/supabase-js";
 import { useRouter, useSegments } from "expo-router";
 import LoadingScreen from "./loading";
 
+const AppTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: AppColors.surfaceAlt,
+    card: AppColors.surface,
+    text: AppColors.text,
+    border: AppColors.borderLight,
+    primary: AppColors.primary,
+  },
+};
+
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
   const router = useRouter();
   const segments = useSegments();
   const [session, setSession] = useState<Session | null>(null);
@@ -77,7 +84,7 @@ export default function RootLayout() {
     const currentRoute = segments[0];
 
     // หน้าที่อนุญาตให้เข้าได้เมื่อมี session (นอกเหนือจาก tabs)
-    const allowedRoutes = ["video", "exam", "modal"];
+    const allowedRoutes = ["video", "exam", "modal", "profile-edit"];
     const isAllowedRoute = allowedRoutes.includes(currentRoute);
 
     if (
@@ -100,7 +107,7 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={AppTheme}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="login" />
         <Stack.Screen name="register" />
@@ -113,9 +120,10 @@ export default function RootLayout() {
         <Stack.Screen name="lessons/[id]" />
         <Stack.Screen name="player/[id]" />
         <Stack.Screen name="exam/[id]" />
+        <Stack.Screen name="profile-edit" />
         <Stack.Screen name="modal" options={{ presentation: "modal" }} />
       </Stack>
-      <StatusBar style="auto" />
+      <StatusBar style="dark" />
     </ThemeProvider>
   );
 }

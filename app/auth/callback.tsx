@@ -1,8 +1,10 @@
+import { usePalette } from "@/hooks/use-palette";
 import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
 
 export default function AuthCallback() {
+  const Palette = usePalette();
   const router = useRouter();
 
   useEffect(() => {
@@ -15,10 +17,10 @@ export default function AuthCallback() {
         flex: 1,
         justifyContent: "center",
         alignItems: "center",
-        backgroundColor: "#fff",
+        backgroundColor: Palette.surface,
       }}
     >
-      <ActivityIndicator size="large" color="#3B82F6" />
+      <ActivityIndicator size="large" color={Palette.primary} />
     </View>
   );
 }

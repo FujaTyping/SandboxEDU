@@ -1,39 +1,40 @@
 import { Palette } from "@/constants/theme";
 import { getJwt } from "@/lib/auth/token";
 import {
-  deleteCourse,
-  downloadCourse,
-  getLocalCourseUri,
-  isCourseDownloaded,
+    deleteCourse,
+    downloadCourse,
+    getLocalCourseUri,
+    isCourseDownloaded,
 } from "@/lib/offline/downloadManager";
+import { saveQuizRecord } from "@/lib/progress/quizHistory";
 import {
-  clearVideoProgress,
-  formatProgress,
-  formatTime,
-  getVideoProgress,
-  saveVideoProgress,
+    clearVideoProgress,
+    formatProgress,
+    formatTime,
+    getVideoProgress,
+    saveVideoProgress,
 } from "@/lib/progress/videoProgress";
 import { Image } from "expo-image";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { useVideoPlayer, VideoView } from "expo-video";
 import {
-  ArrowLeft,
-  Check,
-  CheckCircle,
-  ClipboardList,
-  Play,
-  Zap,
+    ArrowLeft,
+    Check,
+    CheckCircle,
+    ClipboardList,
+    Play,
+    Zap,
 } from "lucide-react-native";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Platform,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Platform,
+    ScrollView,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import MathJaxView from "react-native-mathjax";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -775,6 +776,15 @@ function QuizScreen({
           const correct = newAnswers.filter(Boolean).length;
           const wrong = newAnswers.length - correct;
           const token = await getToken();
+          // บันทึก local history
+          await saveQuizRecord({
+            courseId: course.id,
+            courseTitle: course.title,
+            correct,
+            wrong,
+            total: newAnswers.length,
+            timestamp: Date.now(),
+          });
           if (token) {
             const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
             await fetch(`${apiBase}/quiz/complete`, {
@@ -1471,6 +1481,14 @@ export default function VideoScreen() {
   }, [id]);
 
   const handleDownload = async () => {
+    console.log(
+      "[Download] course:",
+      course?.id,
+      "courseURL:",
+      course?.courseURL,
+      "enrolled:",
+      enrolled,
+    );
     if (!course || !course.courseURL) return;
 
     setDownloading(true);
@@ -1871,61 +1889,64 @@ export default function VideoScreen() {
                     </View>
                   )}
 
-                  {/* Download button - shown after enroll, hidden once downloaded */}
-                  {enrolled && course.courseURL && !isDownloaded && (
-                    <TouchableOpacity
-                      onPress={handleDownload}
-                      disabled={downloading}
-                      activeOpacity={0.85}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        paddingVertical: 16,
-                        borderRadius: 16,
-                        backgroundColor: "#059669",
-                        opacity: downloading ? 0.85 : 1,
-                        shadowColor: "#059669",
-                        shadowOpacity: 0.35,
-                        shadowRadius: 12,
-                        shadowOffset: { width: 0, height: 5 },
-                        elevation: 5,
-                      }}
-                    >
-                      {downloading ? (
-                        <>
-                          <ActivityIndicator size="small" color="#fff" />
-                          <Text
-                            style={{
-                              color: "#fff",
-                              fontWeight: "800",
-                              fontSize: 16,
-                              marginLeft: 10,
-                            }}
-                          >
-                            กำลังดาวน์โหลด...{" "}
-                            {Math.round(downloadProgress * 100)}%
-                          </Text>
-                        </>
-                      ) : (
-                        <>
-                          <Text style={{ fontSize: 18, marginRight: 8 }}>
-                            ⬇️
-                          </Text>
-                          <Text
-                            style={{
-                              color: "#fff",
-                              fontWeight: "800",
-                              fontSize: 16,
-                              letterSpacing: 0.3,
-                            }}
-                          >
-                            ดาวน์โหลดวิดีโอ (Offline)
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  )}
+                  {/* Download button - shown after enroll, hidden once downloaded, hidden on web */}
+                  {enrolled &&
+                    course.courseURL &&
+                    !isDownloaded &&
+                    Platform.OS !== "web" && (
+                      <TouchableOpacity
+                        onPress={handleDownload}
+                        disabled={downloading}
+                        activeOpacity={0.85}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          paddingVertical: 16,
+                          borderRadius: 16,
+                          backgroundColor: "#059669",
+                          opacity: downloading ? 0.85 : 1,
+                          shadowColor: "#059669",
+                          shadowOpacity: 0.35,
+                          shadowRadius: 12,
+                          shadowOffset: { width: 0, height: 5 },
+                          elevation: 5,
+                        }}
+                      >
+                        {downloading ? (
+                          <>
+                            <ActivityIndicator size="small" color="#fff" />
+                            <Text
+                              style={{
+                                color: "#fff",
+                                fontWeight: "800",
+                                fontSize: 16,
+                                marginLeft: 10,
+                              }}
+                            >
+                              กำลังดาวน์โหลด...{" "}
+                              {Math.round(downloadProgress * 100)}%
+                            </Text>
+                          </>
+                        ) : (
+                          <>
+                            <Text style={{ fontSize: 18, marginRight: 8 }}>
+                              ⬇️
+                            </Text>
+                            <Text
+                              style={{
+                                color: "#fff",
+                                fontWeight: "800",
+                                fontSize: 16,
+                                letterSpacing: 0.3,
+                              }}
+                            >
+                              ดาวน์โหลดวิดีโอ (Offline)
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    )}
 
                   {/* Download progress bar */}
                   {downloading && (

@@ -1,6 +1,6 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const PROGRESS_KEY = '@video_progress';
+const PROGRESS_KEY = "@video_progress";
 
 export interface VideoProgress {
   courseId: string;
@@ -13,13 +13,15 @@ export interface VideoProgress {
 /**
  * Get all video progress
  */
-async function getAllProgress(): Promise<Record<string, VideoProgress>> {
+export async function getAllVideoProgress(): Promise<
+  Record<string, VideoProgress>
+> {
   try {
     const json = await AsyncStorage.getItem(PROGRESS_KEY);
     if (!json) return {};
     return JSON.parse(json);
   } catch (e) {
-    console.error('[VideoProgress] Failed to get progress:', e);
+    console.error("[VideoProgress] Failed to get progress:", e);
     return {};
   }
 }
@@ -30,12 +32,12 @@ async function getAllProgress(): Promise<Record<string, VideoProgress>> {
 export async function saveVideoProgress(
   courseId: string,
   currentTime: number,
-  duration: number
+  duration: number,
 ): Promise<void> {
   try {
     const percentage = duration > 0 ? (currentTime / duration) * 100 : 0;
-    
-    const allProgress = await getAllProgress();
+
+    const allProgress = await getAllVideoProgress();
     allProgress[courseId] = {
       courseId,
       currentTime,
@@ -46,19 +48,21 @@ export async function saveVideoProgress(
 
     await AsyncStorage.setItem(PROGRESS_KEY, JSON.stringify(allProgress));
   } catch (e) {
-    console.error('[VideoProgress] Failed to save progress:', e);
+    console.error("[VideoProgress] Failed to save progress:", e);
   }
 }
 
 /**
  * Get progress for a specific course
  */
-export async function getVideoProgress(courseId: string): Promise<VideoProgress | null> {
+export async function getVideoProgress(
+  courseId: string,
+): Promise<VideoProgress | null> {
   try {
-    const allProgress = await getAllProgress();
+    const allProgress = await getAllVideoProgress();
     return allProgress[courseId] || null;
   } catch (e) {
-    console.error('[VideoProgress] Failed to get course progress:', e);
+    console.error("[VideoProgress] Failed to get course progress:", e);
     return null;
   }
 }
@@ -68,11 +72,11 @@ export async function getVideoProgress(courseId: string): Promise<VideoProgress 
  */
 export async function clearVideoProgress(courseId: string): Promise<void> {
   try {
-    const allProgress = await getAllProgress();
+    const allProgress = await getAllVideoProgress();
     delete allProgress[courseId];
     await AsyncStorage.setItem(PROGRESS_KEY, JSON.stringify(allProgress));
   } catch (e) {
-    console.error('[VideoProgress] Failed to clear progress:', e);
+    console.error("[VideoProgress] Failed to clear progress:", e);
   }
 }
 
@@ -97,5 +101,5 @@ export function formatProgress(progress: VideoProgress): string {
 export function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }

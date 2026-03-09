@@ -1,5 +1,6 @@
 import { Palette } from "@/constants/theme";
 import { getJwt } from "@/lib/auth/token";
+import { saveQuizRecord } from "@/lib/progress/quizHistory";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import {
     ArrowLeft,
@@ -146,6 +147,15 @@ export default function ExamScreen() {
     try {
       const token = await getToken();
       const wrong = questions.length - score;
+      // บันทึก local history
+      await saveQuizRecord({
+        courseId: id ?? "unknown",
+        courseTitle: displayTitle,
+        correct: score,
+        wrong,
+        total: questions.length,
+        timestamp: Date.now(),
+      });
       if (token && id) {
         const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
         await fetch(`${apiBase}/quiz/complete`, {
