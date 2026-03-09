@@ -1,5 +1,7 @@
-import { Palette } from "@/constants/theme";
+import { usePalette } from "@/hooks/use-palette";
 import { getJwt } from "@/lib/auth/token";
+import { getQuizHistory, QuizRecord } from "@/lib/progress/quizHistory";
+import { getAllVideoProgress } from "@/lib/progress/videoProgress";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import {
@@ -12,6 +14,7 @@ import {
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
   Platform,
   ScrollView,
   Text,
@@ -19,7 +22,17 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
+import Svg, {
+  Circle,
+  Defs,
+  Line,
+  LinearGradient,
+  Path,
+  Polyline,
+  Rect,
+  Stop,
+  Text as SvgText,
+} from "react-native-svg";
 
 const DEFAULT_AVATAR = "https://i.pravatar.cc/512";
 
@@ -32,16 +45,9 @@ interface ApiUser {
   room?: number;
 }
 
-const cardShadow = Platform.select({
-  ios: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
-  },
-  android: { elevation: 3 },
-  default: {},
-});
+const SCREEN_W = Dimensions.get("window").width;
+const CHART_W = SCREEN_W - 64;
+const CHART_H = 150;
 
 function getGreeting(): string {
   const h = new Date().getHours();
@@ -51,11 +57,212 @@ function getGreeting(): string {
   return "สวัสดีตอนค่ำ 🌙";
 }
 
+function DonutRing({
+  pct,
+  color,
+  track,
+  size = 96,
+  stroke = 9,
+  label,
+  sublabel,
+}: {
+  pct: number;
+  color: string;
+  track: string;
+  size?: number;
+  stroke?: number;
+  label: string;
+  sublabel: string;
+}) {
+  const r = (size - stroke) / 2;
+  const cx = size / 2;
+  const cy = size / 2;
+  const circ = 2 * Math.PI * r;
+  const dash = Math.min((pct / 100) * circ, circ);
+  return (
+    <View style={{ alignItems: "center", gap: 6 }}>
+      <Svg width={size} height={size}>
+        <Circle
+          cx={cx}
+          cy={cy}
+          r={r}
+          stroke={track}
+          strokeWidth={stroke}
+          fill="none"
+        />
+        <Circle
+          cx={cx}
+          cy={cy}
+          r={r}
+          stroke={color}
+          strokeWidth={stroke}
+          fill="none"
+          strokeDasharray={`${dash} ${circ}`}
+          strokeLinecap="round"
+          rotation="-90"
+          origin={`${cx},${cy}`}
+        />
+        <SvgText
+          x={cx}
+          y={cy - 5}
+          textAnchor="middle"
+          fontSize="15"
+          fontWeight="800"
+          fill={color}
+        >
+          {Math.round(pct)}%
+        </SvgText>
+        <SvgText
+          x={cx}
+          y={cy + 11}
+          textAnchor="middle"
+          fontSize="8"
+          fill="#94A3B8"
+        >
+          {sublabel}
+        </SvgText>
+      </Svg>
+      <Text
+        style={{
+          fontSize: 11,
+          fontWeight: "700",
+          color: "#334155",
+          textAlign: "center",
+        }}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+function ScoreLineChart({
+  records,
+  color,
+}: {
+  records: QuizRecord[];
+  color: string;
+}) {
+  if (records.length === 0) {
+    return (
+      <View
+        style={{
+          height: CHART_H,
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+        }}
+      >
+        <Text style={{ fontSize: 28 }}>📊</Text>
+        <Text style={{ color: "#94A3B8", fontSize: 13, textAlign: "center" }}>
+          {"ยังไม่มีประวัติการสอบ\nลองทำแบบทดสอบดูสิ!"}
+        </Text>
+      </View>
+    );
+  }
+  if (records.length === 1) {
+    return (
+      <View
+        style={{
+          height: CHART_H,
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 6,
+        }}
+      >
+        <Text style={{ fontSize: 32, fontWeight: "900", color }}>
+          {records[0].score}%
+        </Text>
+        <Text style={{ color: "#94A3B8", fontSize: 12 }}>
+          ผลล่าสุด — ทำต่อเพื่อดูกราฟพัฒนาการ
+        </Text>
+      </View>
+    );
+  }
+  const scores = records.map((r) => r.score);
+  const minS = Math.max(0, Math.min(...scores) - 15);
+  const maxS = Math.min(100, Math.max(...scores) + 15);
+  const range = maxS - minS || 1;
+  const pad = 14;
+  const pts = records.map((r, i) => ({
+    x: pad + (i / (records.length - 1)) * (CHART_W - pad * 2),
+    y: CHART_H - pad - ((r.score - minS) / range) * (CHART_H - pad * 2),
+    score: r.score,
+  }));
+  const polyPoints = pts.map((p) => `${p.x},${p.y}`).join(" ");
+  const areaD =
+    `M${pts[0].x},${CHART_H - pad} ` +
+    pts.map((p) => `L${p.x},${p.y}`).join(" ") +
+    ` L${pts[pts.length - 1].x},${CHART_H - pad} Z`;
+  return (
+    <Svg width={CHART_W} height={CHART_H}>
+      <Defs>
+        <LinearGradient id="lg" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={color} stopOpacity="0.28" />
+          <Stop offset="1" stopColor={color} stopOpacity="0" />
+        </LinearGradient>
+      </Defs>
+      {[0, 25, 50, 75, 100].map((v) => {
+        const y = CHART_H - pad - ((v - minS) / range) * (CHART_H - pad * 2);
+        if (y < pad || y > CHART_H - pad) return null;
+        return (
+          <Line
+            key={v}
+            x1={pad}
+            y1={y}
+            x2={CHART_W - pad}
+            y2={y}
+            stroke="#E2E8F0"
+            strokeWidth="1"
+            strokeDasharray="4 4"
+          />
+        );
+      })}
+      <Path d={areaD} fill="url(#lg)" />
+      <Polyline
+        points={polyPoints}
+        fill="none"
+        stroke={color}
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {pts.map((p, i) => (
+        <Circle
+          key={i}
+          cx={p.x}
+          cy={p.y}
+          r="5"
+          fill="#fff"
+          stroke={color}
+          strokeWidth="2.5"
+        />
+      ))}
+      {pts.map((p, i) => (
+        <SvgText
+          key={`s${i}`}
+          x={p.x}
+          y={p.y - 10}
+          textAnchor="middle"
+          fontSize="9"
+          fill={color}
+          fontWeight="800"
+        >
+          {p.score}
+        </SvgText>
+      ))}
+    </Svg>
+  );
+}
+
 export default function HomeScreen() {
+  const Palette = usePalette();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [user, setUser] = useState<ApiUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [avgProgress, setAvgProgress] = useState(0);
+  const [quizHistory, setQuizHistory] = useState<QuizRecord[]>([]);
 
   const fetchUser = useCallback(async () => {
     try {
@@ -77,317 +284,495 @@ export default function HomeScreen() {
     }
   }, []);
 
+  const fetchStats = useCallback(async () => {
+    try {
+      const allProgress = await getAllVideoProgress();
+      const values = Object.values(allProgress).map((p) => p.percentage);
+      const avg =
+        values.length > 0
+          ? values.reduce((a, b) => a + b, 0) / values.length
+          : 0;
+      setAvgProgress(Math.min(100, avg));
+    } catch {
+      /* silent */
+    }
+    try {
+      const history = await getQuizHistory();
+      setQuizHistory(history);
+    } catch {
+      /* silent */
+    }
+  }, []);
+
   useEffect(() => {
     fetchUser();
-  }, [fetchUser]);
+    fetchStats();
+  }, [fetchUser, fetchStats]);
 
   const displayName = user?.displayName ?? user?.name ?? "ผู้ใช้";
-  const gradeText = user?.sclass ? `ม.${user.sclass}` : null;
-  const roomText = user?.room ? `ห้อง ${user.room}` : null;
-  const fullName =
-    [user?.name, user?.surname].filter(Boolean).join(" ") || null;
+  const gradeText = user?.sclass ? `ม.${user.sclass}` : "";
+  const roomText = user?.room ? `ห้อง ${user.room}` : "";
+  const avgQuizScore =
+    quizHistory.length > 0
+      ? Math.round(
+          quizHistory.reduce((a, r) => a + r.score, 0) / quizHistory.length,
+        )
+      : 0;
+
+  const sh = Platform.select({
+    ios: {
+      shadowColor: Palette.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 14,
+    },
+    android: { elevation: 5 },
+    default: {},
+  });
+  const shSm = Platform.select({
+    ios: {
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 8,
+    },
+    android: { elevation: 2 },
+    default: {},
+  });
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: "#F8FAFC" }}
-      contentContainerStyle={{ paddingBottom: 48 }}
+      style={{ flex: 1, backgroundColor: Palette.surfaceAlt }}
+      contentContainerStyle={{ paddingBottom: 56 }}
       showsVerticalScrollIndicator={false}
     >
-      {/* ── Twitter-style Profile Header ── */}
-      {/* Banner */}
-      <View style={{ height: 120 + insets.top, overflow: "hidden" }}>
+      {/* ── Hero Header ── */}
+      <View style={{ overflow: "hidden" }}>
         <Svg
           style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
           width="100%"
           height="100%"
-          preserveAspectRatio="none"
         >
           <Defs>
-            <LinearGradient id="hg" x1="0" y1="0" x2="1" y2="1">
+            <LinearGradient id="hero" x1="0" y1="0" x2="1" y2="1">
               <Stop offset="0" stopColor={Palette.gradientStart} />
-              <Stop offset="0.5" stopColor={Palette.gradientMid} />
+              <Stop offset="0.6" stopColor={Palette.gradientMid} />
               <Stop offset="1" stopColor={Palette.gradientEnd} />
             </LinearGradient>
           </Defs>
-          <Rect x="0" y="0" width="100%" height="100%" fill="url(#hg)" />
+          <Rect width="100%" height="100%" fill="url(#hero)" />
         </Svg>
-        {/* Refresh button top-right */}
-        <TouchableOpacity
-          onPress={fetchUser}
-          style={{
-            position: "absolute",
-            top: insets.top + 10,
-            right: 16,
-            padding: 8,
-            borderRadius: 20,
-            backgroundColor: "rgba(0,0,0,0.25)",
-          }}
-          activeOpacity={0.7}
-        >
-          <RefreshCw size={14} color="#fff" strokeWidth={2.5} />
-        </TouchableOpacity>
-      </View>
 
-      {/* Profile row — avatar overlaps banner, name below */}
-      <View style={{ backgroundColor: "#fff", paddingBottom: 16 }}>
-        {/* Avatar — positioned to overlap banner by half */}
-        <View style={{ paddingHorizontal: 16, marginTop: -44 }}>
+        <View
+          style={{
+            paddingTop: insets.top + 16,
+            paddingHorizontal: 20,
+            paddingBottom: 32,
+          }}
+        >
           <View
             style={{
-              width: 95,
-              height: 95,
-              borderRadius: 44,
-              borderWidth: 4,
-              borderColor: "#fff",
-              backgroundColor: "#E2E8F0",
-              overflow: "hidden",
+              flexDirection: "row",
+              justifyContent: "space-between",
               alignItems: "center",
-              justifyContent: "center",
+              marginBottom: 20,
             }}
           >
-            <Image
-              source={{ uri: user?.avatarURL || DEFAULT_AVATAR }}
-              style={{ width: 88, height: 88 }}
-              contentFit="cover"
-            />
+            <Text
+              style={{
+                fontSize: 13,
+                color: "rgba(255,255,255,0.8)",
+                fontWeight: "600",
+              }}
+            >
+              {getGreeting()}
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                fetchUser();
+                fetchStats();
+              }}
+              style={{
+                padding: 8,
+                borderRadius: 20,
+                backgroundColor: "rgba(255,255,255,0.15)",
+              }}
+              activeOpacity={0.7}
+            >
+              <RefreshCw size={14} color="#fff" strokeWidth={2.5} />
+            </TouchableOpacity>
           </View>
-        </View>
 
-        {/* Name + info */}
-        <View style={{ paddingHorizontal: 16, marginTop: 10 }}>
-          {loading ? (
-            <ActivityIndicator color={Palette.primary} />
-          ) : (
-            <>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+            <View
+              style={{
+                width: 68,
+                height: 68,
+                borderRadius: 34,
+                borderWidth: 3,
+                borderColor: "rgba(255,255,255,0.9)",
+                backgroundColor: Palette.primaryBg,
+                overflow: "hidden",
+              }}
+            >
+              {loading ? (
+                <View
+                  style={{
+                    flex: 1,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <ActivityIndicator color={Palette.primary} size="small" />
+                </View>
+              ) : (
+                <Image
+                  source={{ uri: user?.avatarURL || DEFAULT_AVATAR }}
+                  style={{ width: 68, height: 68 }}
+                  contentFit="cover"
+                />
+              )}
+            </View>
+            <View style={{ flex: 1 }}>
               <Text
                 style={{
-                  fontSize: 22,
+                  fontSize: 21,
                   fontWeight: "900",
-                  color: "#0F172A",
+                  color: "#fff",
                   letterSpacing: 0.2,
                 }}
                 numberOfLines={1}
               >
-                {displayName}
+                {loading ? "..." : displayName}
               </Text>
-              {fullName && fullName !== displayName && (
-                <Text style={{ fontSize: 14, color: "#64748B", marginTop: 2 }}>
-                  {fullName}
-                </Text>
-              )}
-              {(gradeText || roomText) && (
-                <View style={{ flexDirection: "row", gap: 12, marginTop: 6 }}>
-                  {gradeText && (
-                    <Text style={{ fontSize: 13, color: "#64748B" }}>
-                      📚 {gradeText}
-                    </Text>
-                  )}
-                  {roomText && (
-                    <Text style={{ fontSize: 13, color: "#64748B" }}>
-                      🏫 {roomText}
-                    </Text>
-                  )}
+              {gradeText || roomText ? (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    gap: 8,
+                    marginTop: 5,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  {gradeText ? (
+                    <View
+                      style={{
+                        backgroundColor: "rgba(255,255,255,0.2)",
+                        borderRadius: 20,
+                        paddingHorizontal: 10,
+                        paddingVertical: 3,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          color: "#fff",
+                          fontWeight: "700",
+                        }}
+                      >
+                        📚 {gradeText}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {roomText ? (
+                    <View
+                      style={{
+                        backgroundColor: "rgba(255,255,255,0.2)",
+                        borderRadius: 20,
+                        paddingHorizontal: 10,
+                        paddingVertical: 3,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          color: "#fff",
+                          fontWeight: "700",
+                        }}
+                      >
+                        🏫 {roomText}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
-              )}
-              <Text style={{ fontSize: 12, color: "#94A3B8", marginTop: 6 }}>
-                {getGreeting()}
-              </Text>
-            </>
-          )}
-        </View>
+              ) : null}
+            </View>
+          </View>
 
-        {/* Edit Profile Button */}
-        <View
-          style={{
-            paddingHorizontal: 16,
-            paddingBottom: 16,
-            backgroundColor: "#fff",
-          }}
-        >
           <TouchableOpacity
-            onPress={() => router.push("/(tabs)/settings")}
+            onPress={() => router.push("/profile-edit")}
             style={{
+              marginTop: 16,
               flexDirection: "row",
               alignItems: "center",
               gap: 6,
               alignSelf: "flex-start",
-              backgroundColor: Palette.primary + "12",
-              borderRadius: 10,
-              paddingHorizontal: 12,
+              backgroundColor: "rgba(255,255,255,0.18)",
+              borderRadius: 20,
+              paddingHorizontal: 14,
               paddingVertical: 7,
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.35)",
             }}
             activeOpacity={0.75}
           >
-            <Pencil size={13} color={Palette.primary} strokeWidth={2.5} />
-            <Text
-              style={{
-                fontSize: 13,
-                fontWeight: "700",
-                color: Palette.primary,
-              }}
-            >
+            <Pencil size={12} color="#fff" strokeWidth={2.5} />
+            <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff" }}>
               แก้ไขโปรไฟล์
             </Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Separator */}
-      <View style={{ height: 8, backgroundColor: "#F1F5F9" }} />
+      {/* ── Stats Card ── */}
+      <View style={{ paddingHorizontal: 16, marginTop: -18 }}>
+        <View
+          style={[
+            sh,
+            {
+              backgroundColor: Palette.surface,
+              borderRadius: 24,
+              padding: 20,
+              flexDirection: "row",
+              justifyContent: "space-around",
+              alignItems: "center",
+            },
+          ]}
+        >
+          <DonutRing
+            pct={avgProgress}
+            color={Palette.primary}
+            track={Palette.primaryBg}
+            label="คอร์สที่เรียน"
+            sublabel="progress"
+          />
+          <View
+            style={{
+              width: 1,
+              backgroundColor: Palette.borderLight,
+              height: 80,
+            }}
+          />
+          <DonutRing
+            pct={avgQuizScore}
+            color={Palette.accent}
+            track={Palette.accentLight}
+            label="คะแนนเฉลี่ย"
+            sublabel={`${quizHistory.length} ครั้ง`}
+          />
+          <View
+            style={{
+              width: 1,
+              backgroundColor: Palette.borderLight,
+              height: 80,
+            }}
+          />
+          <View style={{ alignItems: "center", gap: 6 }}>
+            <View
+              style={{
+                width: 96,
+                height: 96,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ fontSize: 26 }}>🔥</Text>
+              <Text
+                style={{
+                  fontSize: 22,
+                  fontWeight: "900",
+                  color: Palette.accent,
+                }}
+              >
+                {quizHistory.length}
+              </Text>
+            </View>
+            <Text
+              style={{
+                fontSize: 11,
+                fontWeight: "700",
+                color: "#334155",
+                textAlign: "center",
+              }}
+            >
+              ครั้งที่สอบ
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* ── Score Chart ── */}
+      <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 10,
+          }}
+        >
+          <View>
+            <Text
+              style={{ fontSize: 16, fontWeight: "800", color: Palette.text }}
+            >
+              พัฒนาการคะแนน
+            </Text>
+            <Text
+              style={{ fontSize: 12, color: Palette.textMuted, marginTop: 2 }}
+            >
+              {quizHistory.length > 0
+                ? `${quizHistory.length} ครั้ง · ล่าสุด ${new Date(quizHistory[quizHistory.length - 1].timestamp).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}`
+                : "เริ่มทำแบบทดสอบเพื่อดูกราฟ"}
+            </Text>
+          </View>
+          {quizHistory.length > 0 && (
+            <View
+              style={{
+                backgroundColor: Palette.primaryBg,
+                borderRadius: 12,
+                paddingHorizontal: 10,
+                paddingVertical: 4,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: "800",
+                  color: Palette.primary,
+                }}
+              >
+                {quizHistory[quizHistory.length - 1].score}% ล่าสุด
+              </Text>
+            </View>
+          )}
+        </View>
+        <View
+          style={[
+            shSm,
+            {
+              backgroundColor: Palette.surface,
+              borderRadius: 20,
+              padding: 16,
+              paddingBottom: 10,
+            },
+          ]}
+        >
+          <ScoreLineChart records={quizHistory} color={Palette.primary} />
+        </View>
+      </View>
 
       {/* ── Quick Actions ── */}
-      <View style={{ paddingHorizontal: 20, marginTop: 24 }}>
+      <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
         <Text
           style={{
-            fontSize: 15,
+            fontSize: 16,
             fontWeight: "800",
-            color: "#111",
+            color: Palette.text,
             marginBottom: 12,
           }}
         >
-          เมนูหลัก
+          เริ่มเรียน
         </Text>
-        <TouchableOpacity
-          onPress={() => router.push("/(tabs)/explore")}
-          activeOpacity={0.82}
-          style={[
-            cardShadow,
-            {
-              backgroundColor: "#fff",
-              borderRadius: 18,
-              padding: 18,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 16,
-              marginBottom: 12,
-            },
-          ]}
-        >
-          <View
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 14,
-              backgroundColor: Palette.primary + "15",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <BookOpen size={24} color={Palette.primary} strokeWidth={2} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 15, fontWeight: "800", color: "#111" }}>
-              บทเรียน
-            </Text>
-            <Text style={{ fontSize: 13, color: "#64748B", marginTop: 2 }}>
-              สำรวจคอร์สและวิดีโอทั้งหมด
-            </Text>
-          </View>
-          <ChevronRight size={18} color="#CBD5E1" strokeWidth={2} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={() => router.push("/(tabs)/explore")}
-          activeOpacity={0.82}
-          style={[
-            cardShadow,
-            {
-              backgroundColor: "#fff",
-              borderRadius: 18,
-              padding: 18,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 16,
-            },
-          ]}
-        >
-          <View
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 14,
-              backgroundColor: "#8B5CF615",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <GraduationCap size={24} color="#8B5CF6" strokeWidth={2} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 15, fontWeight: "800", color: "#111" }}>
-              แบบทดสอบ
-            </Text>
-            <Text style={{ fontSize: 13, color: "#64748B", marginTop: 2 }}>
-              ทดสอบความรู้จากบทเรียน
-            </Text>
-          </View>
-          <ChevronRight size={18} color="#CBD5E1" strokeWidth={2} />
-        </TouchableOpacity>
-      </View>
-
-      {/* ── User info card ── */}
-      {user && !loading && (
-        <View style={{ paddingHorizontal: 20, marginTop: 24 }}>
-          <Text
-            style={{
-              fontSize: 15,
-              fontWeight: "800",
-              color: "#111",
-              marginBottom: 12,
-            }}
-          >
-            ข้อมูลของฉัน
-          </Text>
-          <View
+        <View style={{ flexDirection: "row", gap: 12 }}>
+          <TouchableOpacity
+            onPress={() => router.push("/(tabs)/explore")}
+            activeOpacity={0.82}
             style={[
-              cardShadow,
-              { backgroundColor: "#fff", borderRadius: 18, overflow: "hidden" },
+              sh,
+              {
+                flex: 1,
+                backgroundColor: Palette.primary,
+                borderRadius: 20,
+                padding: 18,
+                gap: 10,
+              },
             ]}
           >
-            {[
-              { icon: "👤", label: "ชื่อ-สกุล", value: fullName || "-" },
+            <View
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 14,
+                backgroundColor: "rgba(255,255,255,0.2)",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <BookOpen size={22} color="#fff" strokeWidth={2} />
+            </View>
+            <View>
+              <Text style={{ fontSize: 15, fontWeight: "800", color: "#fff" }}>
+                บทเรียน
+              </Text>
+              <Text
+                style={{
+                  fontSize: 11,
+                  color: "rgba(255,255,255,0.75)",
+                  marginTop: 2,
+                }}
+              >
+                สำรวจคอร์สทั้งหมด
+              </Text>
+            </View>
+            <View style={{ alignSelf: "flex-end" }}>
+              <ChevronRight
+                size={16}
+                color="rgba(255,255,255,0.5)"
+                strokeWidth={2.5}
+              />
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => router.push("/(tabs)/explore")}
+            activeOpacity={0.82}
+            style={[
+              shSm,
               {
-                icon: "✏️",
-                label: "ชื่อที่แสดง",
-                value: user.displayName || "-",
+                flex: 1,
+                backgroundColor: Palette.surface,
+                borderRadius: 20,
+                padding: 18,
+                gap: 10,
+                borderWidth: 1.5,
+                borderColor: Palette.borderLight,
               },
-              { icon: "📚", label: "ชั้นเรียน", value: gradeText || "-" },
-              { icon: "🏫", label: "ห้อง", value: roomText || "-" },
-            ].map((row, i, arr) => (
-              <View key={row.label}>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingHorizontal: 18,
-                    paddingVertical: 14,
-                    gap: 12,
-                  }}
-                >
-                  <Text style={{ fontSize: 18, width: 28 }}>{row.icon}</Text>
-                  <Text style={{ flex: 1, fontSize: 14, color: "#64748B" }}>
-                    {row.label}
-                  </Text>
-                  <Text
-                    style={{ fontSize: 14, fontWeight: "700", color: "#111" }}
-                  >
-                    {row.value}
-                  </Text>
-                </View>
-                {i < arr.length - 1 && (
-                  <View
-                    style={{
-                      height: 1,
-                      backgroundColor: "#F1F5F9",
-                      marginHorizontal: 18,
-                    }}
-                  />
-                )}
-              </View>
-            ))}
-          </View>
+            ]}
+          >
+            <View
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 14,
+                backgroundColor: Palette.examLight,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <GraduationCap size={22} color={Palette.exam} strokeWidth={2} />
+            </View>
+            <View>
+              <Text
+                style={{ fontSize: 15, fontWeight: "800", color: Palette.text }}
+              >
+                แบบทดสอบ
+              </Text>
+              <Text
+                style={{ fontSize: 11, color: Palette.textMuted, marginTop: 2 }}
+              >
+                วัดความรู้ตัวเอง
+              </Text>
+            </View>
+            <View style={{ alignSelf: "flex-end" }}>
+              <ChevronRight
+                size={16}
+                color={Palette.disabled}
+                strokeWidth={2.5}
+              />
+            </View>
+          </TouchableOpacity>
         </View>
-      )}
+      </View>
     </ScrollView>
   );
 }

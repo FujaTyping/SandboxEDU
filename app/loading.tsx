@@ -1,5 +1,5 @@
 import { Palette } from "@/constants/theme";
-import { BookOpen } from "lucide-react-native";
+import { Image } from "expo-image";
 import React, { useEffect, useRef } from "react";
 import { Animated, Easing, Text, View } from "react-native";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
@@ -121,7 +121,11 @@ export default function LoadingScreen() {
             transform: [{ scale: pulseAnim }],
           }}
         >
-          <BookOpen size={52} color={Palette.primary} strokeWidth={2} />
+          <Image
+            source={require("../assets/images/sanboxedu.png")}
+            style={{ width: 80, height: 80 }}
+            contentFit="contain"
+          />
         </Animated.View>
 
         {/* App name */}

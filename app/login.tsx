@@ -1,8 +1,9 @@
-import { Palette } from "@/constants/theme";
+import { usePalette } from "@/hooks/use-palette";
 import { saveJwt } from "@/lib/auth/token";
 import { supabase } from "@/lib/supabase";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { BookOpen, Eye, EyeOff, Lock, Mail } from "lucide-react-native";
+import { Eye, EyeOff, Lock, Mail } from "lucide-react-native";
 import React, { useRef, useState } from "react";
 import {
     ActivityIndicator,
@@ -23,6 +24,7 @@ const MAX_ATTEMPTS = 5;
 const LOCKOUT_MS = 15 * 60 * 1000;
 
 export default function LoginScreen() {
+  const Palette = usePalette();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState("");
@@ -108,8 +110,8 @@ export default function LoginScreen() {
           throw new Error("ไม่สามารถยืนยันตัวตนได้");
         }
 
-        const revalData = await revalRes.json();
-        const jwt = revalData.token ?? revalData.jwt ?? revalData.secret;
+        // /users/revalidate returns JWT as text/plain directly
+        const jwt = await revalRes.text();
 
         if (!jwt) {
           throw new Error("ไม่ได้รับ JWT จากระบบ");
@@ -135,7 +137,7 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      className="flex-1 bg-surface-alt"
+      style={{ flex: 1, backgroundColor: Palette.surfaceAlt }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
@@ -176,8 +178,12 @@ export default function LoginScreen() {
             className="absolute inset-0 justify-center items-center"
             style={{ paddingTop: insets.top }}
           >
-            <View className="w-20 h-20 rounded-3xl bg-white/95 justify-center items-center mb-4 shadow-lg">
-              <BookOpen size={40} color={Palette.primary} strokeWidth={2} />
+            <View className="w-20 h-20 rounded-3xl bg-white/95 justify-center items-center mb-4 shadow-lg overflow-hidden">
+              <Image
+                source={require("../assets/images/sanboxedu.png")}
+                style={{ width: 72, height: 72 }}
+                contentFit="contain"
+              />
             </View>
             <Text className="text-[28px] font-extrabold text-white tracking-wider">
               SandboxEDU
@@ -189,23 +195,64 @@ export default function LoginScreen() {
         </View>
 
         {/* Form card */}
-        <View className="mx-6 -mt-[30px] bg-surface rounded-3xl p-7 shadow-lg">
-          <Text className="text-2xl font-extrabold text-brand-text mb-1">
+        <View
+          style={{
+            marginHorizontal: 24,
+            marginTop: -30,
+            backgroundColor: Palette.surface,
+            borderRadius: 24,
+            padding: 28,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.08,
+            shadowRadius: 12,
+            elevation: 4,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 22,
+              fontWeight: "900",
+              color: Palette.text,
+              marginBottom: 4,
+            }}
+          >
             เข้าสู่ระบบ
           </Text>
-          <Text className="text-sm text-brand-muted mb-6">
+          <Text
+            style={{ fontSize: 14, color: Palette.textMuted, marginBottom: 24 }}
+          >
             กรอกข้อมูลเพื่อเข้าใช้งาน
           </Text>
 
           {/* Email */}
-          <View className="mb-[18px]">
-            <Text className="text-[13px] font-semibold text-brand-secondary mb-2">
+          <View style={{ marginBottom: 18 }}>
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: "600",
+                color: Palette.textSecondary,
+                marginBottom: 8,
+              }}
+            >
               อีเมล
             </Text>
-            <View className="flex-row items-center bg-surface-alt rounded-[14px] border border-edge px-3.5 h-[52px] gap-2.5">
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: Palette.surfaceAlt,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: Palette.border,
+                paddingHorizontal: 14,
+                height: 52,
+                gap: 10,
+              }}
+            >
               <Mail size={18} color={Palette.textMuted} strokeWidth={2} />
               <TextInput
-                className="flex-1 text-base text-brand-text"
+                style={{ flex: 1, fontSize: 16, color: Palette.text }}
                 placeholder="example@email.com"
                 placeholderTextColor={Palette.disabled}
                 value={email}
@@ -217,14 +264,33 @@ export default function LoginScreen() {
           </View>
 
           {/* Password */}
-          <View className="mb-[18px]">
-            <Text className="text-[13px] font-semibold text-brand-secondary mb-2">
+          <View style={{ marginBottom: 18 }}>
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: "600",
+                color: Palette.textSecondary,
+                marginBottom: 8,
+              }}
+            >
               รหัสผ่าน
             </Text>
-            <View className="flex-row items-center bg-surface-alt rounded-[14px] border border-edge px-3.5 h-[52px] gap-2.5">
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: Palette.surfaceAlt,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: Palette.border,
+                paddingHorizontal: 14,
+                height: 52,
+                gap: 10,
+              }}
+            >
               <Lock size={18} color={Palette.textMuted} strokeWidth={2} />
               <TextInput
-                className="flex-1 text-base text-brand-text"
+                style={{ flex: 1, fontSize: 16, color: Palette.text }}
                 placeholder="••••••••"
                 placeholderTextColor={Palette.disabled}
                 value={password}
@@ -245,36 +311,63 @@ export default function LoginScreen() {
           </View>
 
           {/* Forgot password */}
-          <TouchableOpacity className="self-end mb-6 -mt-1.5">
-            <Text className="text-[13px] font-semibold text-primary">
+          <TouchableOpacity
+            style={{ alignSelf: "flex-end", marginBottom: 24, marginTop: -6 }}
+          >
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: "600",
+                color: Palette.primary,
+              }}
+            >
               ลืมรหัสผ่าน?
             </Text>
           </TouchableOpacity>
 
           {/* Login button */}
           <TouchableOpacity
-            className="bg-primary rounded-2xl h-[54px] justify-center items-center mb-5 shadow-md"
+            style={{
+              backgroundColor: Palette.primary,
+              borderRadius: 16,
+              height: 54,
+              justifyContent: "center",
+              alignItems: "center",
+              marginBottom: 20,
+              opacity: loading ? 0.6 : 1,
+            }}
             activeOpacity={0.85}
             onPress={handleLogin}
             disabled={loading}
-            style={{ opacity: loading ? 0.6 : 1 }}
           >
             {loading ? (
               <ActivityIndicator color="white" />
             ) : (
-              <Text className="text-[17px] font-bold text-white">
+              <Text style={{ fontSize: 17, fontWeight: "700", color: "#fff" }}>
                 เข้าสู่ระบบ
               </Text>
             )}
           </TouchableOpacity>
 
           {/* Register link */}
-          <View className="flex-row justify-center items-center">
-            <Text className="text-sm text-brand-secondary">
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ fontSize: 14, color: Palette.textSecondary }}>
               ยังไม่มีบัญชี?{" "}
             </Text>
             <TouchableOpacity onPress={() => router.push("/register" as any)}>
-              <Text className="text-sm font-bold text-primary">
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontWeight: "700",
+                  color: Palette.primary,
+                }}
+              >
                 สมัครสมาชิก
               </Text>
             </TouchableOpacity>
