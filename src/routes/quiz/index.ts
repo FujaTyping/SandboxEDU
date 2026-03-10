@@ -37,7 +37,7 @@ const generateNewQuizSchema = z.object({
         title: z.string().describe('โจทย์คำถาม'),
         score: z.number().describe('คะแนนของคำถามนี้'),
         hint: z.string().describe('คำใบวิธีสำหรับตอบคำถาม'),
-        key: z.string().describe('ตัวเลือกที่ถูกต้อง'),
+        key: z.number().describe('Index ของตัวเลือกที่ถูกต้อง'),
         answer: z.string().describe('คำตอบ และ อธิบายคำตอบอย่างละเอียด'),
         options: z.array(z.string()).length(4).describe('ตัวเลือก 4 ตัวเลือก ก,ข,ค,ง')
     }))
