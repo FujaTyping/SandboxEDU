@@ -1,5 +1,6 @@
 import { usePalette } from "@/hooks/use-palette";
-import { saveJwt } from "@/lib/auth/token";
+import { saveJwtWithExpiry } from "@/lib/auth/jwtRefresh";
+import { saveUserCache } from "@/lib/cache/userCache";
 import { supabase } from "@/lib/supabase";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
@@ -31,6 +32,8 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [needsDisplayName, setNeedsDisplayName] = useState(false);
+  const [fallbackDisplayName, setFallbackDisplayName] = useState("");
   const attemptCount = useRef(0);
   const lockoutUntil = useRef<number | null>(null);
 
@@ -78,46 +81,86 @@ export default function LoginScreen() {
       let jwtObtained = false;
       try {
         const { data: sessionData } = await supabase.auth.getSession();
-        const accessToken = sessionData.session?.access_token;
+        const session = sessionData.session;
         const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
 
-        if (!accessToken || !apiBase) {
+        if (!session || !apiBase) {
           throw new Error("ไม่สามารถเชื่อมต่อกับระบบได้");
         }
 
-        const userRes = await fetch(`${apiBase}/users/get`, {
-          headers: { authorization: `Bearer ${accessToken}` },
-        });
+        // ดึง displayName จาก Supabase user metadata (บันทึกตอน register)
+        let displayName: string =
+          (session.user.user_metadata?.displayName as string | undefined) ?? "";
 
-        if (!userRes.ok) {
-          throw new Error("ไม่สามารถดึงข้อมูลผู้ใช้ได้");
-        }
+        console.log("[Login] displayName from metadata:", displayName);
 
-        const userData = await userRes.json();
-        const displayName = userData.displayName ?? userData.name;
-
+        // Fallback: user เก่าไม่มี metadata — ใช้ fallbackDisplayName จาก state
         if (!displayName) {
-          throw new Error("ไม่พบข้อมูลผู้ใช้");
+          if (!fallbackDisplayName.trim()) {
+            setNeedsDisplayName(true);
+            setLoading(false);
+            await supabase.auth.signOut();
+            Alert.alert(
+              "กรุณากรอก Display Name",
+              "กรอก Display Name ที่ช่องด้านล่างแล้วกดเข้าสู่ระบบอีกครั้ง",
+            );
+            return;
+          }
+          displayName = fallbackDisplayName.trim();
+          await supabase.auth
+            .updateUser({ data: { displayName } })
+            .catch(() => {});
         }
 
+        // /users/revalidate — ส่งแค่ displayName ไม่ต้องการ auth header
         const revalRes = await fetch(`${apiBase}/users/revalidate`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ displayName }),
         });
 
+        console.log("[Login] /users/revalidate status:", revalRes.status);
         if (!revalRes.ok) {
-          throw new Error("ไม่สามารถยืนยันตัวตนได้");
+          const errText = await revalRes.text();
+          console.error("[Login] /users/revalidate error:", errText);
+          let apiMsg = "";
+          try {
+            apiMsg = JSON.parse(errText)?.message ?? "";
+          } catch {}
+          throw new Error(apiMsg || "ยืนยันตัวตนไม่สำเร็จ");
         }
 
-        // /users/revalidate returns JWT as text/plain directly
-        const jwt = await revalRes.text();
+        // รองรับทั้ง plain text และ JSON {token/jwt/secret}
+        const revalText = await revalRes.text();
+        console.log("[Login] revalidate response:", revalText.slice(0, 80));
+
+        let jwt: string | null = null;
+        try {
+          const revalJson = JSON.parse(revalText);
+          jwt = revalJson.token ?? revalJson.jwt ?? revalJson.secret ?? null;
+        } catch {
+          jwt = revalText.trim();
+        }
 
         if (!jwt) {
           throw new Error("ไม่ได้รับ JWT จากระบบ");
         }
 
-        await saveJwt(jwt);
+        await saveJwtWithExpiry(jwt);
+
+        // ดึงข้อมูล user profile ด้วย custom JWT แล้ว cache
+        try {
+          const userRes = await fetch(`${apiBase}/users/get`, {
+            headers: { authorization: `Bearer ${jwt}` },
+          });
+          if (userRes.ok) {
+            const userData = await userRes.json();
+            await saveUserCache(userData);
+          }
+        } catch {
+          /* silent — cache ไม่สำเร็จก็ยังเข้าแอพได้ */
+        }
+
         jwtObtained = true;
       } catch (e) {
         await supabase.auth.signOut();
@@ -125,8 +168,8 @@ export default function LoginScreen() {
           "เข้าสู่ระบบไม่สำเร็จ",
           e instanceof Error ? e.message : "กรุณาลองใหม่อีกครั้ง",
         );
+      } finally {
         setLoading(false);
-        return;
       }
 
       if (jwtObtained) {
@@ -224,6 +267,43 @@ export default function LoginScreen() {
           >
             กรอกข้อมูลเพื่อเข้าใช้งาน
           </Text>
+
+          {/* Fallback: Display Name สำหรับ user เก่า */}
+          {needsDisplayName && (
+            <View style={{ marginBottom: 18 }}>
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: "700",
+                  color: Palette.danger,
+                  marginBottom: 6,
+                }}
+              >
+                ⚠️ กรอก Display Name ที่ใช้ตอนสมัคร
+              </Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: Palette.surfaceAlt,
+                  borderRadius: 14,
+                  borderWidth: 1.5,
+                  borderColor: Palette.danger,
+                  paddingHorizontal: 14,
+                  height: 52,
+                }}
+              >
+                <TextInput
+                  style={{ flex: 1, fontSize: 16, color: Palette.text }}
+                  placeholder="เช่น Somsri"
+                  placeholderTextColor={Palette.disabled}
+                  value={fallbackDisplayName}
+                  onChangeText={setFallbackDisplayName}
+                  autoCapitalize="none"
+                />
+              </View>
+            </View>
+          )}
 
           {/* Email */}
           <View style={{ marginBottom: 18 }}>

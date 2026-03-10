@@ -28,6 +28,7 @@ interface QuizQuestion {
   question: string;
   choices: string[];
   answer: string;
+  hint?: string;
   explanation?: string;
 }
 
@@ -80,7 +81,8 @@ export default function ExamScreen() {
           id: q.id || `q-${index}`,
           question: q.title || q.question || "ไม่มีคำถาม",
           choices: choicesArray,
-          answer: q.key || q.answer || "",
+          answer: String(q.key ?? q.answer ?? ""),
+          hint: q.hint || "",
           explanation: q.answer || q.explanation || "",
         };
       });
@@ -97,6 +99,7 @@ export default function ExamScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [showExplanation, setShowExplanation] = useState(false);
+  const [showHint, setShowHint] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const currentQ = questions[currentIndex];
@@ -135,6 +138,7 @@ export default function ExamScreen() {
 
   const handleNext = () => {
     setShowExplanation(false);
+    setShowHint(false);
     if (currentIndex < questions.length - 1) {
       setCurrentIndex((i) => i + 1);
     } else {
@@ -248,9 +252,66 @@ export default function ExamScreen() {
           </Text>
         </View>
 
-        <Text className="text-base font-bold text-brand-text leading-7 mb-5">
+        <Text className="text-base font-bold text-brand-text leading-7 mb-4">
           {currentQ?.question}
         </Text>
+
+        {/* Hint — แสดงก่อนตอบ */}
+        {!isAnswered && currentQ?.hint && (
+          <View style={{ marginBottom: 12 }}>
+            {!showHint ? (
+              <TouchableOpacity
+                onPress={() => setShowHint(true)}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  borderRadius: 10,
+                  borderWidth: 1.5,
+                  borderColor: "#F59E0B",
+                  backgroundColor: "#FFFBEB",
+                  alignSelf: "flex-start",
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 14 }}>💡</Text>
+                <Text
+                  style={{ fontSize: 12, fontWeight: "700", color: "#D97706" }}
+                >
+                  ดูคำใบ้
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <View
+                style={{
+                  padding: 12,
+                  borderRadius: 12,
+                  backgroundColor: "#FFFBEB",
+                  borderWidth: 1.5,
+                  borderColor: "#F59E0B",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: "800",
+                    color: "#D97706",
+                    marginBottom: 4,
+                  }}
+                >
+                  💡 คำใบ้
+                </Text>
+                <Text
+                  style={{ fontSize: 13, color: "#78350F", lineHeight: 20 }}
+                >
+                  {currentQ.hint}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Choices from array */}
         {(currentQ?.choices || []).map((choiceText, ci) => {
@@ -467,6 +528,14 @@ export default function ExamScreen() {
                     ✗ คุณตอบ: {userText}
                   </Text>
                 )}
+                {q.explanation ? (
+                  <Text
+                    className="text-xs mt-1.5"
+                    style={{ color: "#64748B", lineHeight: 17 }}
+                  >
+                    📖 {q.explanation}
+                  </Text>
+                ) : null}
               </View>
             </View>
           </View>

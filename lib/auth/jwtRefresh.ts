@@ -3,9 +3,9 @@
  * ตรวจสอบและ refresh JWT อัตโนมัติ
  */
 
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { saveJwt, getJwt, clearJwt } from "./token";
 import { supabase } from "@/lib/supabase";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { clearJwt, getJwt, saveJwt } from "./token";
 
 const JWT_EXPIRY_KEY = "@sandboxedu_jwt_expiry";
 const REFRESH_THRESHOLD = 5 * 60 * 1000; // 5 minutes before expiry
@@ -55,30 +55,22 @@ export async function isJwtExpired(): Promise<boolean> {
 export async function refreshJwt(): Promise<boolean> {
   try {
     const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData.session?.access_token;
+    const session = sessionData.session;
     const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
 
-    if (!accessToken || !apiBase) {
+    if (!session || !apiBase) {
       return false;
     }
 
-    // Get user info
-    const userRes = await fetch(`${apiBase}/users/get`, {
-      headers: { authorization: `Bearer ${accessToken}` },
-    });
-
-    if (!userRes.ok) {
-      return false;
-    }
-
-    const userData = await userRes.json();
-    const displayName = userData.displayName ?? userData.name;
+    // ดึง displayName จาก Supabase user metadata (ไม่ต้องเรียก /users/get)
+    const displayName =
+      (session.user.user_metadata?.displayName as string | undefined) ?? "";
 
     if (!displayName) {
       return false;
     }
 
-    // Revalidate to get new JWT
+    // Revalidate to get new JWT — /users/revalidate ไม่ต้องการ auth header
     const revalRes = await fetch(`${apiBase}/users/revalidate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -89,8 +81,15 @@ export async function refreshJwt(): Promise<boolean> {
       return false;
     }
 
-    const revalData = await revalRes.json();
-    const jwt = revalData.token ?? revalData.jwt ?? revalData.secret;
+    // รองรับทั้ง JSON {token/jwt/secret} และ plain text
+    const revalText = await revalRes.text();
+    let jwt: string | null = null;
+    try {
+      const revalData = JSON.parse(revalText);
+      jwt = revalData.token ?? revalData.jwt ?? revalData.secret ?? null;
+    } catch {
+      jwt = revalText.trim();
+    }
 
     if (!jwt) {
       return false;

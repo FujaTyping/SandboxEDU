@@ -1,18 +1,20 @@
 import { usePalette } from "@/hooks/use-palette";
-import { clearJwt, getJwt } from "@/lib/auth/token";
+import { getJwtWithRefresh } from "@/lib/auth/jwtRefresh";
+import { clearJwt } from "@/lib/auth/token";
+import { getUserCache, saveUserCache } from "@/lib/cache/userCache";
 import { supabase } from "@/lib/supabase";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { ChevronRight, LogOut, Pencil, RefreshCw } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Platform,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Platform,
+    ScrollView,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -37,13 +39,22 @@ export default function SettingsScreen() {
   const fetchUser = useCallback(async () => {
     try {
       setLoadingUser(true);
-      const token = await getJwt();
-      if (!token) return;
+      const cached = await getUserCache();
+      if (cached) setUser(cached);
+      const token = await getJwtWithRefresh();
+      if (!token) {
+        setLoadingUser(false);
+        return;
+      }
       const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
       const res = await fetch(`${apiBase}/users/get`, {
         headers: { authorization: `Bearer ${token}` },
       });
-      if (res.ok) setUser(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        setUser(data);
+        await saveUserCache(data);
+      }
     } catch {
       /* silent */
     } finally {
