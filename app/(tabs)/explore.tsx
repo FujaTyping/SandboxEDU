@@ -673,9 +673,12 @@ export default function ExploreScreen() {
 
   return (
     <View className="flex-1 bg-surface-alt">
-      {!isOnline && <OfflineBanner />}
+      {!isOnline && <OfflineBanner insetTop={insets.top} />}
       {/* Header */}
-      <View className="px-6 pb-3" style={{ paddingTop: insets.top + 16 }}>
+      <View
+        className="px-6 pb-3"
+        style={{ paddingTop: isOnline ? insets.top + 16 : 16 }}
+      >
         <View className="flex-row items-center justify-between mb-4">
           <Text className="text-[28px] font-extrabold text-brand-text tracking-wide">
             {isOnline ? "สำรวจ" : "📥 Offline"}

@@ -14,10 +14,8 @@
     "android": {
       "package": "com.sandboxedu.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#1E4DB7"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -54,18 +52,15 @@
           "supportsBackgroundPlayback": true,
           "allowsExternalPlayback": false
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
     },
     "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "73a5d0f0-cbb8-4563-b657-fbeca21b8f3c"
-      }
-    },
-    "owner": "chavaphon"
+      "router": {}
+    }
   }
 }
