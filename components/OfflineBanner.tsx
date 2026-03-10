@@ -1,9 +1,9 @@
 import { AppColors } from "@/constants/colors";
 import { WifiOff } from "lucide-react-native";
-import { Animated, Text, View } from "react-native";
 import { useEffect, useRef } from "react";
+import { Animated, Text, View } from "react-native";
 
-export function OfflineBanner() {
+export function OfflineBanner({ insetTop = 0 }: { insetTop?: number }) {
   const translateY = useRef(new Animated.Value(-60)).current;
 
   useEffect(() => {
@@ -23,7 +23,8 @@ export function OfflineBanner() {
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
-        paddingVertical: 10,
+        paddingTop: insetTop + 10,
+        paddingBottom: 10,
         paddingHorizontal: 16,
         gap: 8,
       }}
@@ -41,7 +42,9 @@ export function OfflineBanner() {
           marginLeft: 4,
         }}
       >
-        <Text style={{ fontSize: 11, color: AppColors.primary, fontWeight: "700" }}>
+        <Text
+          style={{ fontSize: 11, color: AppColors.primary, fontWeight: "700" }}
+        >
           เฉพาะคลิปที่ดาวน์โหลด
         </Text>
       </View>
