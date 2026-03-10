@@ -7,15 +7,15 @@ import { getUserCache, saveUserCache } from "@/lib/cache/userCache";
 import { getQuizHistory, QuizRecord } from "@/lib/progress/quizHistory";
 import { getAllVideoProgress } from "@/lib/progress/videoProgress";
 import { Image } from "expo-image";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import {
     BookOpen,
     ChevronRight,
     GraduationCap,
     Pencil,
-    RefreshCw
+    RefreshCw,
 } from "lucide-react-native";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
     ActivityIndicator,
     Dimensions,
@@ -41,10 +41,10 @@ import Svg, {
 
 const DEFAULT_AVATAR = "https://i.pravatar.cc/512";
 
-const RADAR_SIZE = 220;
+const RADAR_SIZE = 300;
 const RADAR_CX = RADAR_SIZE / 2;
 const RADAR_CY = RADAR_SIZE / 2;
-const RADAR_R = 80;
+const RADAR_R = 86;
 const RADAR_LEVELS = 4;
 
 function polarToXY(angleDeg: number, r: number, cx: number, cy: number) {
@@ -143,29 +143,47 @@ function RadarChart({ data }: { data: Record<string, number> }) {
         {dataPoints.map((p, i) => {
           const labelPos = polarToXY(
             i * angleStep,
-            RADAR_R + 18,
+            RADAR_R + 28,
             RADAR_CX,
             RADAR_CY,
           );
           const scoreColor =
             p.score >= 70 ? "#22C55E" : p.score >= 40 ? "#F59E0B" : "#EF4444";
+          const chars = [...p.label];
+          const line1 = chars.length > 5 ? chars.slice(0, 5).join("") : p.label;
+          const line2raw = chars.length > 5 ? chars.slice(5).join("") : "";
+          const line2 =
+            line2raw.length > 4 ? line2raw.slice(0, 4) + "…" : line2raw;
+          const hasLine2 = line2.length > 0;
           return (
             <React.Fragment key={`label-${i}`}>
               <SvgText
                 x={labelPos.x}
-                y={labelPos.y - 5}
+                y={hasLine2 ? labelPos.y - 11 : labelPos.y - 4}
                 textAnchor="middle"
-                fontSize="9"
+                fontSize="10"
                 fontWeight="700"
-                fill="#334155"
+                fill="#1E293B"
               >
-                {p.label.length > 6 ? p.label.slice(0, 6) + "..." : p.label}
+                {line1}
               </SvgText>
+              {hasLine2 && (
+                <SvgText
+                  x={labelPos.x}
+                  y={labelPos.y + 1}
+                  textAnchor="middle"
+                  fontSize="10"
+                  fontWeight="700"
+                  fill="#1E293B"
+                >
+                  {line2}
+                </SvgText>
+              )}
               <SvgText
                 x={labelPos.x}
-                y={labelPos.y + 7}
+                y={hasLine2 ? labelPos.y + 13 : labelPos.y + 9}
                 textAnchor="middle"
-                fontSize="9"
+                fontSize="10"
                 fontWeight="800"
                 fill={scoreColor}
               >
@@ -523,11 +541,13 @@ export default function HomeScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchUser();
-    fetchStats();
-    fetchSkills();
-  }, [fetchUser, fetchStats, fetchSkills]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchUser();
+      fetchStats();
+      fetchSkills();
+    }, [fetchUser, fetchStats, fetchSkills]),
+  );
 
   const displayName = user?.displayName ?? user?.name ?? "ผู้ใช้";
   const gradeText = user?.sclass ? `ม.${user.sclass}` : "";

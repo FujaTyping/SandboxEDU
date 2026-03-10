@@ -23,16 +23,22 @@ async function getAllHistory(): Promise<QuizRecord[]> {
   }
 }
 
-export async function saveQuizRecord(record: Omit<QuizRecord, "id" | "score">): Promise<void> {
+export async function saveQuizRecord(
+  record: Omit<QuizRecord, "id" | "score">,
+): Promise<void> {
   try {
     const all = await getAllHistory();
     const newRecord: QuizRecord = {
       ...record,
       id: `${record.courseId}_${record.timestamp}`,
-      score: record.total > 0 ? Math.round((record.correct / record.total) * 100) : 0,
+      score:
+        record.total > 0
+          ? Math.round((record.correct / record.total) * 100)
+          : 0,
     };
     all.push(newRecord);
-    await AsyncStorage.setItem(QUIZ_HISTORY_KEY, JSON.stringify(all));
+    const trimmed = all.length > 100 ? all.slice(all.length - 100) : all;
+    await AsyncStorage.setItem(QUIZ_HISTORY_KEY, JSON.stringify(trimmed));
   } catch (e) {
     console.error("[QuizHistory] Failed to save:", e);
   }
@@ -43,9 +49,13 @@ export async function getQuizHistory(): Promise<QuizRecord[]> {
   return all.sort((a, b) => a.timestamp - b.timestamp);
 }
 
-export async function getQuizHistoryByCourse(courseId: string): Promise<QuizRecord[]> {
+export async function getQuizHistoryByCourse(
+  courseId: string,
+): Promise<QuizRecord[]> {
   const all = await getAllHistory();
-  return all.filter((r) => r.courseId === courseId).sort((a, b) => a.timestamp - b.timestamp);
+  return all
+    .filter((r) => r.courseId === courseId)
+    .sort((a, b) => a.timestamp - b.timestamp);
 }
 
 export async function clearQuizHistory(): Promise<void> {

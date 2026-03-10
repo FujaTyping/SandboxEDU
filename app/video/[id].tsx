@@ -766,9 +766,15 @@ function QuizScreen({
     if (selected !== null) return;
     setSelected(idx);
     const q = questions[currentQ];
-    const answerVal: string = q.key ?? q.answer ?? "";
     const choicesArr: string[] = q.choices ?? q.options ?? [];
-    const correctIdx = choicesArr.indexOf(answerVal);
+    let correctIdx: number;
+    if (q.key !== undefined && q.key !== null && !isNaN(Number(q.key))) {
+      // key เป็น index ของ choices array
+      correctIdx = Number(q.key);
+    } else {
+      // key เป็น text — หา index จาก choices
+      correctIdx = choicesArr.indexOf(String(q.key ?? q.answer ?? ""));
+    }
     const isCorrect = idx === correctIdx;
     const newAnswers = [...answers, isCorrect];
 
