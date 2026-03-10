@@ -1,5 +1,44 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
+import { PermissionsAndroid, Platform } from "react-native";
+
+async function requestStoragePermission(): Promise<boolean> {
+  if (Platform.OS !== "android") return true;
+
+  // Android 13+ (API 33+): READ_MEDIA_VIDEO replaces READ_EXTERNAL_STORAGE
+  // Android 10+ (API 29+): app-private documentDirectory needs no permission
+  // Android <10: needs WRITE_EXTERNAL_STORAGE for some operations
+  const sdkVersion = Platform.Version as number;
+
+  if (sdkVersion >= 33) {
+    const granted = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO,
+      {
+        title: "ขออนุญาตเข้าถึงไฟล์วิดีโอ",
+        message: "แอพต้องการสิทธิ์เพื่อบันทึกและโหลดวิดีโอสำหรับดูแบบออฟไลน์",
+        buttonPositive: "อนุญาต",
+        buttonNegative: "ปฏิเสธ",
+      },
+    );
+    return granted === PermissionsAndroid.RESULTS.GRANTED;
+  }
+
+  if (sdkVersion < 29) {
+    const granted = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+      {
+        title: "ขออนุญาตบันทึกไฟล์",
+        message: "แอพต้องการสิทธิ์เพื่อบันทึกวิดีโอลงเครื่อง",
+        buttonPositive: "อนุญาต",
+        buttonNegative: "ปฏิเสธ",
+      },
+    );
+    return granted === PermissionsAndroid.RESULTS.GRANTED;
+  }
+
+  // Android 10-12: documentDirectory is app-private, no permission needed
+  return true;
+}
 
 const getDownloadsDir = () => {
   const docDir = FileSystem.documentDirectory ?? "";
@@ -84,6 +123,11 @@ export async function downloadCourse(
   thumbnailUrl?: string,
   onProgress?: (progress: number) => void,
 ): Promise<string> {
+  const hasPermission = await requestStoragePermission();
+  if (!hasPermission) {
+    throw new Error("ไม่ได้รับสิทธิ์เข้าถึงไฟล์ กรุณาอนุญาตในการตั้งค่าแอพ");
+  }
+
   await ensureDownloadsDirExists();
 
   const filename = `${courseId}.mp4`;

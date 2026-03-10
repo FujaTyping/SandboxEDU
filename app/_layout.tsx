@@ -7,6 +7,7 @@ import "react-native-reanimated";
 import "../global.css";
 
 import { getJwt, saveJwt } from "@/lib/auth/token";
+import { saveUserCache } from "@/lib/cache/userCache";
 import { supabase } from "@/lib/supabase";
 import type { Session } from "@supabase/supabase-js";
 import { useRouter, useSegments } from "expo-router";
@@ -23,6 +24,21 @@ const AppTheme = {
     primary: AppColors.primary,
   },
 };
+
+async function refreshUserProfile(jwt: string) {
+  try {
+    const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
+    const res = await fetch(`${apiBase}/users/get`, {
+      headers: { authorization: `Bearer ${jwt}` },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      await saveUserCache(data);
+    }
+  } catch {
+    /* silent */
+  }
+}
 
 export default function RootLayout() {
   const router = useRouter();
@@ -59,7 +75,11 @@ export default function RootLayout() {
       });
     };
 
-    initAuth();
+    initAuth().then(async () => {
+      // Refresh profile in background ทุกครั้งที่เปิดแอพ
+      const jwt = await getJwt();
+      if (jwt) refreshUserProfile(jwt);
+    });
 
     // Listen to auth changes (skip in dev mode)
     const useDevMode =

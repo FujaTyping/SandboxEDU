@@ -1,19 +1,19 @@
 import { usePalette } from "@/hooks/use-palette";
-import { getJwt } from "@/lib/auth/token";
+import { getJwtWithRefresh } from "@/lib/auth/jwtRefresh";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { Check, ChevronLeft, X } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -28,7 +28,13 @@ interface ApiUser {
   room?: number;
 }
 
-type EditField = "name" | "surname" | "displayName" | "avatarURL" | "sclass" | "room";
+type EditField =
+  | "name"
+  | "surname"
+  | "displayName"
+  | "avatarURL"
+  | "sclass"
+  | "room";
 
 interface FieldConfig {
   key: EditField;
@@ -41,10 +47,33 @@ interface FieldConfig {
 const FIELDS: FieldConfig[] = [
   { key: "name", label: "ชื่อ", placeholder: "สมชาย", icon: "👤" },
   { key: "surname", label: "นามสกุล", placeholder: "ใจดี", icon: "👤" },
-  { key: "displayName", label: "ชื่อที่แสดง", placeholder: "ชายชาย", icon: "✏️" },
-  { key: "avatarURL", label: "URL รูปโปรไฟล์", placeholder: DEFAULT_AVATAR, keyboardType: "url", icon: "🖼️" },
-  { key: "sclass", label: "ระดับชั้น (1-6)", placeholder: "5", keyboardType: "number-pad", icon: "📚" },
-  { key: "room", label: "ห้อง", placeholder: "1", keyboardType: "number-pad", icon: "🏫" },
+  {
+    key: "displayName",
+    label: "ชื่อที่แสดง",
+    placeholder: "ชายชาย",
+    icon: "✏️",
+  },
+  {
+    key: "avatarURL",
+    label: "URL รูปโปรไฟล์",
+    placeholder: DEFAULT_AVATAR,
+    keyboardType: "url",
+    icon: "🖼️",
+  },
+  {
+    key: "sclass",
+    label: "ระดับชั้น (1-6)",
+    placeholder: "5",
+    keyboardType: "number-pad",
+    icon: "📚",
+  },
+  {
+    key: "room",
+    label: "ห้อง",
+    placeholder: "1",
+    keyboardType: "number-pad",
+    icon: "🏫",
+  },
 ];
 
 export default function ProfileEditScreen() {
@@ -61,19 +90,23 @@ export default function ProfileEditScreen() {
   const fetchUser = useCallback(async () => {
     try {
       setLoadingUser(true);
-      const token = await getJwt();
+      const token = await getJwtWithRefresh();
       if (!token) return;
       const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
       const res = await fetch(`${apiBase}/users/get`, {
         headers: { authorization: `Bearer ${token}` },
       });
       if (res.ok) setUser(await res.json());
-    } catch { /* silent */ } finally {
+    } catch {
+      /* silent */
+    } finally {
       setLoadingUser(false);
     }
   }, []);
 
-  useEffect(() => { fetchUser(); }, [fetchUser]);
+  useEffect(() => {
+    fetchUser();
+  }, [fetchUser]);
 
   function startEdit(field: EditField) {
     setEditValue(user ? String(user[field] ?? "") : "");
@@ -88,21 +121,32 @@ export default function ProfileEditScreen() {
   async function saveEdit() {
     if (!editingField) return;
     const val = editValue.trim();
-    if (!val) { Alert.alert("ข้อมูลว่าง", "กรุณากรอกค่าที่ต้องการบันทึก"); return; }
-    if (editingField === "sclass" && (isNaN(Number(val)) || Number(val) < 1 || Number(val) > 6)) {
-      Alert.alert("ระดับชั้นไม่ถูกต้อง", "กรอก 1-6"); return;
+    if (!val) {
+      Alert.alert("ข้อมูลว่าง", "กรุณากรอกค่าที่ต้องการบันทึก");
+      return;
+    }
+    if (
+      editingField === "sclass" &&
+      (isNaN(Number(val)) || Number(val) < 1 || Number(val) > 6)
+    ) {
+      Alert.alert("ระดับชั้นไม่ถูกต้อง", "กรอก 1-6");
+      return;
     }
     if (editingField === "room" && (isNaN(Number(val)) || Number(val) < 1)) {
-      Alert.alert("ห้องไม่ถูกต้อง", "กรอกเลขห้องเป็นตัวเลข"); return;
+      Alert.alert("ห้องไม่ถูกต้อง", "กรอกเลขห้องเป็นตัวเลข");
+      return;
     }
     setSaving(true);
     try {
-      const token = await getJwt();
+      const token = await getJwtWithRefresh();
       if (!token) throw new Error("ไม่พบ token");
       const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
       const res = await fetch(`${apiBase}/users/edit/${editingField}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", authorization: `Bearer ${token}` },
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ value: val }),
       });
       if (!res.ok) {
@@ -113,7 +157,10 @@ export default function ProfileEditScreen() {
       setEditingField(null);
       setEditValue("");
     } catch (e) {
-      Alert.alert("บันทึกไม่สำเร็จ", e instanceof Error ? e.message : "ลองใหม่อีกครั้ง");
+      Alert.alert(
+        "บันทึกไม่สำเร็จ",
+        e instanceof Error ? e.message : "ลองใหม่อีกครั้ง",
+      );
     } finally {
       setSaving(false);
     }
@@ -157,7 +204,14 @@ export default function ProfileEditScreen() {
         >
           <ChevronLeft size={20} color={Palette.text} strokeWidth={2.5} />
         </TouchableOpacity>
-        <Text style={{ fontSize: 18, fontWeight: "800", color: Palette.text, flex: 1 }}>
+        <Text
+          style={{
+            fontSize: 18,
+            fontWeight: "800",
+            color: Palette.text,
+            flex: 1,
+          }}
+        >
           แก้ไขโปรไฟล์
         </Text>
       </View>
@@ -189,16 +243,32 @@ export default function ProfileEditScreen() {
             }}
           >
             {loadingUser ? (
-              <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+              <View
+                style={{
+                  flex: 1,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
                 <ActivityIndicator color={Palette.primary} />
               </View>
             ) : (
-              <Image source={{ uri: avatarUrl }} style={{ width: 88, height: 88 }} contentFit="cover" />
+              <Image
+                source={{ uri: avatarUrl }}
+                style={{ width: 88, height: 88 }}
+                contentFit="cover"
+              />
             )}
           </View>
-          <Text style={{ fontSize: 18, fontWeight: "800", color: Palette.text }}>{displayName}</Text>
+          <Text
+            style={{ fontSize: 18, fontWeight: "800", color: Palette.text }}
+          >
+            {displayName}
+          </Text>
           {(gradeText || roomText) && (
-            <Text style={{ fontSize: 13, color: Palette.textMuted, marginTop: 4 }}>
+            <Text
+              style={{ fontSize: 13, color: Palette.textMuted, marginTop: 4 }}
+            >
               {[gradeText, roomText].filter(Boolean).join(" · ")}
             </Text>
           )}
@@ -224,17 +294,42 @@ export default function ProfileEditScreen() {
             return (
               <View key={field.key}>
                 {index > 0 && (
-                  <View style={{ height: 1, backgroundColor: Palette.borderLight, marginHorizontal: 16 }} />
+                  <View
+                    style={{
+                      height: 1,
+                      backgroundColor: Palette.borderLight,
+                      marginHorizontal: 16,
+                    }}
+                  />
                 )}
                 <View style={{ paddingHorizontal: 18, paddingVertical: 14 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                      marginBottom: 6,
+                    }}
+                  >
                     <Text style={{ fontSize: 15 }}>{field.icon}</Text>
-                    <Text style={{ fontSize: 12, color: Palette.textMuted, fontWeight: "700" }}>
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        color: Palette.textMuted,
+                        fontWeight: "700",
+                      }}
+                    >
                       {field.label}
                     </Text>
                   </View>
                   {isEditing ? (
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
                       <TextInput
                         style={{
                           flex: 1,
@@ -280,7 +375,11 @@ export default function ProfileEditScreen() {
                           justifyContent: "center",
                         }}
                       >
-                        <X size={16} color={Palette.textMuted} strokeWidth={2.5} />
+                        <X
+                          size={16}
+                          color={Palette.textMuted}
+                          strokeWidth={2.5}
+                        />
                       </TouchableOpacity>
                     </View>
                   ) : (
@@ -307,7 +406,15 @@ export default function ProfileEditScreen() {
                       >
                         {currentVal || field.placeholder}
                       </Text>
-                      <Text style={{ fontSize: 12, color: Palette.primary, fontWeight: "700" }}>แก้ไข</Text>
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          color: Palette.primary,
+                          fontWeight: "700",
+                        }}
+                      >
+                        แก้ไข
+                      </Text>
                     </TouchableOpacity>
                   )}
                 </View>

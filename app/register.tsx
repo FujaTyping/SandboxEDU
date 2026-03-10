@@ -1,29 +1,29 @@
 import { usePalette } from "@/hooks/use-palette";
-import { saveJwt } from "@/lib/auth/token";
+import { saveJwtWithExpiry } from "@/lib/auth/jwtRefresh";
 import { supabase } from "@/lib/supabase";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import {
-  BookOpen,
-  Eye,
-  EyeOff,
-  Hash,
-  Lock,
-  Mail,
-  User,
-  UserPlus,
+    BookOpen,
+    Eye,
+    EyeOff,
+    Hash,
+    Lock,
+    Mail,
+    User,
+    UserPlus,
 } from "lucide-react-native";
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
@@ -202,7 +202,11 @@ export default function RegisterScreen() {
         throw new Error("ไม่ได้รับ JWT จากระบบ");
       }
 
-      await saveJwt(jwt);
+      await saveJwtWithExpiry(jwt);
+      // Save displayName to Supabase metadata เพื่อให้ login ดึงได้ภายหลัง
+      await supabase.auth
+        .updateUser({ data: { displayName: dn } })
+        .catch(() => {});
       router.replace("/(tabs)");
     } catch (e) {
       Alert.alert(

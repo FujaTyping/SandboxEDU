@@ -1,5 +1,5 @@
 import { Palette } from "@/constants/theme";
-import { getJwt } from "@/lib/auth/token";
+import { getJwtWithRefresh } from "@/lib/auth/jwtRefresh";
 import {
     deleteCourse,
     downloadCourse,
@@ -136,7 +136,7 @@ function MathText({
 }
 
 async function getToken(): Promise<string | null> {
-  return getJwt();
+  return getJwtWithRefresh();
 }
 
 type Phase = "preview" | "player" | "quiz";
@@ -726,15 +726,25 @@ function QuizScreen({
         return;
       }
       const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
+      const reqBody = { id: String(course.id), difficulty };
+      console.log("[QuizScreen] POST /quiz/generate body:", reqBody);
       const res = await fetch(`${apiBase}/quiz/generate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ id: course.id, difficulty }),
+        body: JSON.stringify(reqBody),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error("[QuizScreen] /quiz/generate error:", errText);
+        let msg = `HTTP ${res.status}`;
+        try {
+          msg = (JSON.parse(errText) as any).message ?? msg;
+        } catch {}
+        throw new Error(msg);
+      }
       const data = await res.json();
       const qs = Array.isArray(data)
         ? data
@@ -2003,7 +2013,14 @@ export default function VideoScreen() {
 
               {/* ── Quiz Card ── */}
               {enrolled && (
-                <View
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/(tabs)/explore",
+                      params: { quizCourseId: id },
+                    } as any)
+                  }
                   style={[
                     cardShadow,
                     {
@@ -2020,27 +2037,26 @@ export default function VideoScreen() {
                     style={{
                       flexDirection: "row",
                       alignItems: "center",
-                      marginBottom: 10,
-                      gap: 10,
+                      gap: 12,
                     }}
                   >
                     <View
                       style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: 19,
+                        width: 44,
+                        height: 44,
+                        borderRadius: 22,
                         backgroundColor: "#8B5CF615",
                         alignItems: "center",
                         justifyContent: "center",
                       }}
                     >
                       <ClipboardList
-                        size={20}
+                        size={22}
                         color="#8B5CF6"
                         strokeWidth={2}
                       />
                     </View>
-                    <View>
+                    <View style={{ flex: 1 }}>
                       <Text
                         style={{
                           fontWeight: "800",
@@ -2051,33 +2067,35 @@ export default function VideoScreen() {
                         แบบทดสอบ
                       </Text>
                       <Text
-                        style={{ fontSize: 12, color: "#64748B", marginTop: 1 }}
+                        style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}
                       >
-                        เลือกระดับความยาก แล้วเริ่มสอบได้เลย
+                        กดเพื่อเลือกระดับและเริ่มทำแบบทดสอบ
+                      </Text>
+                    </View>
+                    <View
+                      style={{
+                        backgroundColor: "#8B5CF6",
+                        paddingHorizontal: 14,
+                        paddingVertical: 8,
+                        borderRadius: 12,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      <Zap size={14} color="#fff" strokeWidth={2.5} />
+                      <Text
+                        style={{
+                          color: "#fff",
+                          fontWeight: "800",
+                          fontSize: 13,
+                        }}
+                      >
+                        ทำเลย
                       </Text>
                     </View>
                   </View>
-                  <TouchableOpacity
-                    onPress={() => setPhase("quiz")}
-                    activeOpacity={0.85}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      paddingVertical: 14,
-                      borderRadius: 14,
-                      backgroundColor: "#8B5CF6",
-                      gap: 8,
-                    }}
-                  >
-                    <Zap size={18} color="#fff" strokeWidth={2.5} />
-                    <Text
-                      style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}
-                    >
-                      เริ่มทำแบบทดสอบ
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+                </TouchableOpacity>
               )}
             </>
           ) : null}
