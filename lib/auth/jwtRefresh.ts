@@ -62,9 +62,18 @@ export async function refreshJwt(): Promise<boolean> {
       return false;
     }
 
-    // ดึง displayName จาก Supabase user metadata (ไม่ต้องเรียก /users/get)
-    const displayName =
+    // ดึง displayName จาก Supabase user metadata
+    let displayName =
       (session.user.user_metadata?.displayName as string | undefined) ?? "";
+
+    // ถ้าไม่มี displayName ลอง refresh Supabase session ก่อน
+    if (!displayName) {
+      const { data: refreshedData } = await supabase.auth.refreshSession();
+      displayName =
+        (refreshedData.session?.user.user_metadata?.displayName as
+          | string
+          | undefined) ?? "";
+    }
 
     if (!displayName) {
       return false;
@@ -113,8 +122,8 @@ export async function getJwtWithRefresh(): Promise<string | null> {
   if (expired) {
     const refreshed = await refreshJwt();
     if (!refreshed) {
-      await clearJwt();
-      return null;
+      // ไม่ clear JWT — คืน token เดิมไปก่อน แทนที่จะบังคับ logout
+      return jwt;
     }
     return getJwt();
   }

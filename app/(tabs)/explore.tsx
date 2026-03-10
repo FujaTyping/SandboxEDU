@@ -5,15 +5,9 @@ import { useNetworkStatus } from "@/hooks/use-network-status";
 import { getJwtWithRefresh } from "@/lib/auth/jwtRefresh";
 import { getDownloadedCourses } from "@/lib/offline/downloadManager";
 import { getVideoProgress } from "@/lib/progress/videoProgress";
-import { useFocusEffect } from "@react-navigation/native";
 import { Image } from "expo-image";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import {
-    BookOpen,
-    ClipboardList,
-    RefreshCw,
-    Zap
-} from "lucide-react-native";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { BookOpen, ClipboardList, RefreshCw, Zap } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,

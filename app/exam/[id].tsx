@@ -77,13 +77,20 @@ export default function ExamScreen() {
             ? q.options
             : [];
 
+        // key = index ของคำตอบที่ถูก, answer = text อธิบาย
+        const answerKey =
+          q.key !== undefined && q.key !== null
+            ? String(q.key)
+            : String(q.answer ?? "");
+        const explanation =
+          q.explanation ?? (q.key !== undefined ? q.answer : "") ?? "";
         return {
           id: q.id || `q-${index}`,
           question: q.title || q.question || "ไม่มีคำถาม",
           choices: choicesArray,
-          answer: String(q.key ?? q.answer ?? ""),
+          answer: answerKey,
           hint: q.hint || "",
-          explanation: q.answer || q.explanation || "",
+          explanation: String(explanation),
         };
       });
     } catch (e) {
