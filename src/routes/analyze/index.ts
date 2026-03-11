@@ -3,6 +3,7 @@ import { t } from "elysia";
 import verify from "../../lib/verify";
 import { z } from "zod"
 import ai from "../../lib/gemini";
+import { model } from "../config.json"
 
 const getUserHeaders = t.Object({
     authorization: t.String() // Bearer Token
@@ -50,7 +51,7 @@ export default (app: ElysiaApp) => app
         })
 
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash-lite",
+            model: `${model}`,
             contents: `ช่วยวิเคาห์ข้อมูลผู้เรียนจากการทำแบบทดสอบ ของนักเรียน ${v.displayName} เพื่อจะได้นำมาแสดงเป็นกราฟ โดยมีข้อมูลดั้งนี้ ${userQuizMsg}
             
             หากวิชาไหนไม่มีข้อมูลให้ใส่ 0

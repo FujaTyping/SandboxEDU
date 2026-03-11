@@ -4,6 +4,7 @@ import supabase from "../../lib/supabase";
 import verify from "../../lib/verify";
 import ai from "../../lib/gemini";
 import { z } from "zod";
+import { model } from "../config.json"
 
 enum difficulty {
     easy = "easy",
@@ -61,7 +62,7 @@ export default (app: ElysiaApp) => app
 
         try {
             const response = await ai.models.generateContent({
-                model: "gemini-2.5-flash-lite",
+                model: `${model}`,
                 contents: `สร้างข้อสอบสำหรับวิชา ${courseData.subject} ของระดับชั้น ม.${courseData.class} ระดับความนาก ${difficulty}
                 ในหัวข้อ "${courseData.title}" โดยมีคำอธิบายดังนี้ ${courseData.decs}
                 

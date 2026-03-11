@@ -13,10 +13,12 @@
     "@elysiajs/openapi": "^1.4.14",
     "@google/genai": "^1.43.0",
     "@supabase/supabase-js": "^2.98.0",
+    "@types/lodash": "^4.17.24",
     "dotenv": "^17.3.1",
     "elysia": "latest",
     "elysia-autoload": "^1.7.0",
     "elysia-rate-limit": "^4.5.0",
+    "lodash": "^4.17.23",
     "zod": "^4.3.6"
   },
   "devDependencies": {
