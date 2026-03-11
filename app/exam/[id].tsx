@@ -1,5 +1,5 @@
 import { Palette } from "@/constants/theme";
-import { getJwt } from "@/lib/auth/token";
+import { getJwtWithRefresh } from "@/lib/auth/jwtRefresh";
 import { saveQuizRecord } from "@/lib/progress/quizHistory";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -46,7 +46,7 @@ const cardShadow = Platform.select({
 type Phase = "exam" | "result";
 
 async function getToken(): Promise<string | null> {
-  return getJwt();
+  return getJwtWithRefresh();
 }
 
 export default function ExamScreen() {

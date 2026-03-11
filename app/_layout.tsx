@@ -132,13 +132,7 @@ export default function RootLayout() {
         <Stack.Screen name="login" />
         <Stack.Screen name="register" />
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="subject/[id]" />
-        <Stack.Screen name="lesson" />
-        <Stack.Screen name="editlesson/[id]" />
-        <Stack.Screen name="choosesubject/[id]" />
         <Stack.Screen name="video/[id]" />
-        <Stack.Screen name="lessons/[id]" />
-        <Stack.Screen name="player/[id]" />
         <Stack.Screen name="exam/[id]" />
         <Stack.Screen name="profile-edit" />
         <Stack.Screen name="modal" options={{ presentation: "modal" }} />

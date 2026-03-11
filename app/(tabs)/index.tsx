@@ -9,34 +9,35 @@ import { getAllVideoProgress } from "@/lib/progress/videoProgress";
 import { Image } from "expo-image";
 import { useFocusEffect, useRouter } from "expo-router";
 import {
-    BookOpen,
-    ChevronRight,
-    GraduationCap,
-    Pencil,
-    RefreshCw,
+  BookOpen,
+  ChevronRight,
+  GraduationCap,
+  Pencil,
+  RefreshCw,
 } from "lucide-react-native";
 import React, { useCallback, useState } from "react";
 import {
-    ActivityIndicator,
-    Dimensions,
-    Platform,
-    ScrollView,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Platform,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, {
-    Circle,
-    Defs,
-    Line,
-    LinearGradient,
-    Path,
-    Polygon,
-    Polyline,
-    Rect,
-    Stop,
-    Text as SvgText,
+  Circle,
+  Defs,
+  Line,
+  LinearGradient,
+  Path,
+  Polygon,
+  Polyline,
+  Rect,
+  Stop,
+  Text as SvgText,
 } from "react-native-svg";
 
 const DEFAULT_AVATAR = "https://i.pravatar.cc/512";
@@ -507,12 +508,35 @@ export default function HomeScreen() {
       const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
       const res = await fetch(`${apiBase}/analyze/skills`, {
         method: "POST",
-        headers: { authorization: `Bearer ${token}` },
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
       });
       if (res.ok) {
         const data = await res.json();
-        setSkills(data);
+        // API returns { skills: [{skillName, skillPoint}], description, improve, reportTitle }
+        if (Array.isArray(data?.skills)) {
+          const mapped: Record<string, number> = {};
+          for (const s of data.skills as {
+            skillName: string;
+            skillPoint: number;
+          }[]) {
+            mapped[s.skillName] = s.skillPoint;
+          }
+          setSkills(mapped);
+        } else if (typeof data === "object" && !Array.isArray(data)) {
+          // fallback: ถ้า API ส่งมาเป็น Record<string,number> โดยตรง
+          setSkills(data as Record<string, number>);
+        }
         console.log("[Skills]", data);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        console.warn("[Skills] API error:", res.status, err);
+        Alert.alert(
+          "วิเคราะห์ทักษะไม่สำเร็จ",
+          (err as any)?.message ?? `เกิดข้อผิดพลาด (HTTP ${res.status})`,
+        );
       }
     } catch {
       /* silent */
@@ -545,8 +569,7 @@ export default function HomeScreen() {
     useCallback(() => {
       fetchUser();
       fetchStats();
-      fetchSkills();
-    }, [fetchUser, fetchStats, fetchSkills]),
+    }, [fetchUser, fetchStats]),
   );
 
   const displayName = user?.displayName ?? user?.name ?? "ผู้ใช้";
@@ -582,7 +605,7 @@ export default function HomeScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: Palette.surfaceAlt }}>
-      {!isOnline && <OfflineBanner />}
+      {!isOnline && <OfflineBanner insetTop={insets.top} />}
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 56 }}
@@ -940,17 +963,22 @@ export default function HomeScreen() {
                   ทักษะของฉัน
                 </Text>
               </View>
-              <TouchableOpacity
-                onPress={fetchSkills}
-                activeOpacity={0.7}
-                style={{ padding: 4 }}
-              >
-                <RefreshCw
-                  size={14}
-                  color={Palette.textMuted}
-                  strokeWidth={2}
-                />
-              </TouchableOpacity>
+              {skills && Object.keys(skills).length > 0 && (
+                <TouchableOpacity
+                  onPress={fetchSkills}
+                  activeOpacity={0.7}
+                  style={{ padding: 4 }}
+                  disabled={skillsLoading}
+                >
+                  <RefreshCw
+                    size={14}
+                    color={
+                      skillsLoading ? Palette.borderLight : Palette.textMuted
+                    }
+                    strokeWidth={2}
+                  />
+                </TouchableOpacity>
+              )}
             </View>
 
             <View
@@ -980,7 +1008,7 @@ export default function HomeScreen() {
                 <RadarChart data={skills} />
               ) : (
                 <View style={{ alignItems: "center", paddingVertical: 20 }}>
-                  <Text style={{ fontSize: 28, marginBottom: 8 }}>📊</Text>
+                  <Text style={{ fontSize: 28, marginBottom: 8 }}>🎯</Text>
                   <Text
                     style={{
                       fontSize: 13,
@@ -989,32 +1017,36 @@ export default function HomeScreen() {
                       marginBottom: 4,
                     }}
                   >
-                    ยังไม่มีข้อมูลทักษะ
+                    วิเคราะห์ทักษะของคุณ
                   </Text>
                   <Text
                     style={{
                       fontSize: 12,
                       color: Palette.textMuted,
                       textAlign: "center",
-                      marginBottom: 14,
+                      marginBottom: 16,
                     }}
                   >
-                    ทำแบบทดสอบเพื่อให้ระบบวิเคราะห์จุดแข็ง-จุดอ่อนของคุณ
+                    กดปุ่มด้านล่างเพื่อให้ระบบวิเคราะห์จุดแข็ง-จุดอ่อนจากประวัติการทำแบบทดสอบ
                   </Text>
                   <TouchableOpacity
-                    onPress={() => router.push("/(tabs)/explore" as any)}
+                    onPress={fetchSkills}
                     style={{
                       backgroundColor: Palette.primary,
-                      paddingHorizontal: 20,
-                      paddingVertical: 10,
-                      borderRadius: 12,
+                      paddingHorizontal: 24,
+                      paddingVertical: 11,
+                      borderRadius: 14,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
                     }}
                     activeOpacity={0.82}
                   >
+                    <GraduationCap size={15} color="#fff" strokeWidth={2.5} />
                     <Text
                       style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}
                     >
-                      เริ่มทำแบบทดสอบ
+                      วิเคราะห์ทักษะ
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -1037,7 +1069,12 @@ export default function HomeScreen() {
           </Text>
           <View style={{ flexDirection: "row", gap: 12 }}>
             <TouchableOpacity
-              onPress={() => router.push("/(tabs)/explore")}
+              onPress={() =>
+                router.push({
+                  pathname: "/(tabs)/explore",
+                  params: { initialTab: "courses" },
+                } as any)
+              }
               activeOpacity={0.82}
               style={[
                 sh,
@@ -1088,7 +1125,12 @@ export default function HomeScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => router.push("/(tabs)/explore")}
+              onPress={() =>
+                router.push({
+                  pathname: "/(tabs)/explore",
+                  params: { initialTab: "quiz" },
+                } as any)
+              }
               activeOpacity={0.82}
               style={[
                 shSm,

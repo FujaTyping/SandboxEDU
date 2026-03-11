@@ -585,21 +585,26 @@ export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { isOnline } = useNetworkStatus();
-  const params = useLocalSearchParams<{ quizCourseId?: string }>();
+  const params = useLocalSearchParams<{
+    quizCourseId?: string;
+    initialTab?: string;
+  }>();
   const quizCourseId = params.quizCourseId;
+  const initialTab = params.initialTab as "courses" | "quiz" | undefined;
   const [courses, setCourses] = useState<ApiCourse[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progressMap, setProgressMap] = useState<Record<string, number>>({});
   const [activeTab, setActiveTab] = useState<"courses" | "quiz">(
-    quizCourseId ? "quiz" : "courses",
+    quizCourseId ? "quiz" : (initialTab ?? "courses"),
   );
 
-  // Auto-switch to quiz tab เมื่อมี quizCourseId
+  // Auto-switch tab เมื่อมี quizCourseId หรือ initialTab
   useEffect(() => {
     if (quizCourseId) setActiveTab("quiz");
-  }, [quizCourseId]);
+    else if (initialTab) setActiveTab(initialTab);
+  }, [quizCourseId, initialTab]);
 
   const loadProgressMap = useCallback(async (courseList: ApiCourse[]) => {
     const map: Record<string, number> = {};
