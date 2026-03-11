@@ -298,12 +298,6 @@ function CoursePlayer({
       try {
         const currentTime = player.currentTime ?? 0;
         const duration = player.duration ?? 0;
-        // Debug: log every 3 ticks to see what values we get
-        if (tick % 3 === 0) {
-          console.log(
-            `[Progress] tick=${tick} currentTime=${currentTime} duration=${duration} playing=${player.playing}`,
-          );
-        }
         tick++;
         // Guard against 0, Infinity, NaN
         const validDuration = isFinite(duration) && duration > 0;
@@ -311,9 +305,6 @@ function CoursePlayer({
           const pct = (currentTime / duration) * 100;
           setLiveProgress({ pct, current: currentTime, duration });
           if (tick % 5 === 0) {
-            console.log(
-              `[Progress] Saving: ${currentTime.toFixed(1)}s / ${duration.toFixed(1)}s = ${pct.toFixed(1)}%`,
-            );
             saveVideoProgress(course.id, currentTime, duration);
           }
         }
@@ -1467,6 +1458,14 @@ export default function VideoScreen() {
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
           setCourse(data);
+          // ถ้า API บอกว่า enrolled แล้ว ให้ sync ลง local cache ด้วย
+          if (data.enrolled || data.isEnrolled) {
+            setEnrolled(true);
+            const AS = (
+              await import("@react-native-async-storage/async-storage")
+            ).default;
+            await AS.setItem(ENROLL_KEY, "1");
+          }
         } catch (fetchErr) {
           // Offline: try to build minimal course from download index
           const { getDownloadedCourses } =

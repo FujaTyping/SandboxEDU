@@ -3,9 +3,19 @@ import { getJwtWithRefresh } from "@/lib/auth/jwtRefresh";
 import { clearJwt } from "@/lib/auth/token";
 import { getUserCache, saveUserCache } from "@/lib/cache/userCache";
 import { supabase } from "@/lib/supabase";
+import {
+    getLastSyncTime as fetchLastSyncTime,
+    performFullSync,
+} from "@/lib/sync/syncManager";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { ChevronRight, LogOut, Pencil, RefreshCw } from "lucide-react-native";
+import {
+    ChevronRight,
+    CloudUpload,
+    LogOut,
+    Pencil,
+    RefreshCw,
+} from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
@@ -35,6 +45,8 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const [user, setUser] = useState<ApiUser | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [lastSyncTime, setSyncTime] = useState<number | null>(null);
 
   const fetchUser = useCallback(async () => {
     try {
@@ -64,7 +76,53 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     fetchUser();
+    fetchLastSyncTime().then(setSyncTime);
   }, [fetchUser]);
+
+  const handleSync = useCallback(async () => {
+    setSyncing(true);
+    try {
+      const result = await performFullSync();
+      setSyncTime(result.syncedAt);
+      const lines: string[] = ["ซิงค์ข้อมูลสำเร็จ ✅"];
+      lines.push(`📹 ความคืบหน้าวิดีโอ: ซิงค์แล้ว`);
+      lines.push(`📝 ประวัติแบบทดสอบ: ซิงค์แล้ว`);
+      if (result.mergedVideoCount > 0)
+        lines.push(
+          `⬇️ นำเข้าความคืบหน้าวิดีโอใหม่ ${result.mergedVideoCount} รายการ`,
+        );
+      if (result.mergedQuizCount > 0)
+        lines.push(
+          `⬇️ นำเข้าประวัติแบบทดสอบใหม่ ${result.mergedQuizCount} รายการ`,
+        );
+      Alert.alert("ซิงค์ข้อมูล", lines.join("\n"));
+    } catch (e) {
+      Alert.alert(
+        "ซิงค์ไม่สำเร็จ",
+        e instanceof Error ? e.message : "ลองใหม่อีกครั้ง",
+      );
+    } finally {
+      setSyncing(false);
+    }
+  }, []);
+
+  const formatSyncTime = (ts: number | null): string => {
+    if (!ts) return "ยังไม่เคย sync";
+    const d = new Date(ts);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return "เมื่อกี้";
+    if (diffMin < 60) return `${diffMin} นาทีที่แล้ว`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `${diffHr} ชั่วโมงที่แล้ว`;
+    return d.toLocaleDateString("th-TH", {
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
 
   const avatarUrl = user?.avatarURL || DEFAULT_AVATAR;
   const displayName = user?.displayName ?? user?.name ?? "ผู้ใช้";
@@ -198,6 +256,61 @@ export default function SettingsScreen() {
               style={{ fontSize: 12, color: Palette.textMuted, marginTop: 1 }}
             >
               ชื่อ, รูปโปรไฟล์, ระดับชั้น
+            </Text>
+          </View>
+          <ChevronRight size={16} color={Palette.disabled} strokeWidth={2} />
+        </TouchableOpacity>
+
+        <View
+          style={{
+            height: 1,
+            backgroundColor: Palette.borderLight,
+            marginHorizontal: 18,
+          }}
+        />
+
+        {/* Sync */}
+        <TouchableOpacity
+          onPress={handleSync}
+          activeOpacity={0.7}
+          disabled={syncing}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            paddingHorizontal: 18,
+            paddingVertical: 16,
+            gap: 14,
+            opacity: syncing ? 0.6 : 1,
+          }}
+        >
+          <View
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 10,
+              backgroundColor: "#E8F5E9",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {syncing ? (
+              <ActivityIndicator size="small" color="#2E7D32" />
+            ) : (
+              <CloudUpload size={18} color="#2E7D32" strokeWidth={2} />
+            )}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={{ fontSize: 15, fontWeight: "600", color: Palette.text }}
+            >
+              ซิงค์ข้อมูล
+            </Text>
+            <Text
+              style={{ fontSize: 12, color: Palette.textMuted, marginTop: 1 }}
+            >
+              {syncing
+                ? "กำลังซิงค์..."
+                : `ซิงค์ล่าสุด: ${formatSyncTime(lastSyncTime)}`}
             </Text>
           </View>
           <ChevronRight size={16} color={Palette.disabled} strokeWidth={2} />
