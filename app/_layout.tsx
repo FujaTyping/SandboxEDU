@@ -104,7 +104,7 @@ export default function RootLayout() {
     const currentRoute = segments[0];
 
     // หน้าที่อนุญาตให้เข้าได้เมื่อมี session (นอกเหนือจาก tabs)
-    const allowedRoutes = ["video", "exam", "modal", "profile-edit"];
+    const allowedRoutes = ["video", "exam", "quiz", "modal", "profile-edit"];
     const isAllowedRoute = allowedRoutes.includes(currentRoute);
 
     if (
@@ -133,6 +133,7 @@ export default function RootLayout() {
         <Stack.Screen name="register" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="video/[id]" />
+        <Stack.Screen name="quiz/[id]" />
         <Stack.Screen name="exam/[id]" />
         <Stack.Screen name="profile-edit" />
         <Stack.Screen name="modal" options={{ presentation: "modal" }} />

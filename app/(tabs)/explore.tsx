@@ -2,21 +2,27 @@ import { CourseListSkeleton } from "@/components/LoadingSkeleton";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { Palette } from "@/constants/theme";
 import { useNetworkStatus } from "@/hooks/use-network-status";
-import { getJwtWithRefresh } from "@/lib/auth/jwtRefresh";
 import { getDownloadedCourses } from "@/lib/offline/downloadManager";
+import { getAvailableSavedDifficulties } from "@/lib/progress/savedQuizzes";
 import { getVideoProgress } from "@/lib/progress/videoProgress";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { BookOpen, ClipboardList, RefreshCw, Zap } from "lucide-react-native";
+import {
+  BookOpen,
+  ClipboardList,
+  Lock,
+  RefreshCw,
+  WifiOff,
+} from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Platform,
-    RefreshControl,
-    ScrollView,
-    Text,
-    TouchableOpacity,
-    View,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -65,11 +71,6 @@ const cardShadow = Platform.select({
   android: { elevation: 3 },
   default: {},
 });
-
-async function getAuthHeader(): Promise<string | null> {
-  const jwt = await getJwtWithRefresh();
-  return jwt ? `Bearer ${jwt}` : null;
-}
 
 function CourseCard({
   course,
@@ -266,295 +267,248 @@ function CoursesTab({
 
 function QuizCard({
   course,
-  isExpanded,
-  onToggle,
+  isEnrolled,
+  savedDifficulties,
 }: {
   course: ApiCourse;
-  isExpanded: boolean;
-  onToggle: () => void;
+  isEnrolled: boolean;
+  savedDifficulties: Array<"easy" | "medium" | "hard">;
 }) {
   const router = useRouter();
+  const { isOnline } = useNetworkStatus();
   const color = SUBJECT_COLOR[course.subject] ?? Palette.primary;
   const icon = SUBJECT_ICON[course.subject] ?? "📚";
-  const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">(
-    "medium",
-  );
-  const [starting, setStarting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const handleStart = async () => {
-    setStarting(true);
-    setError(null);
-    try {
-      const token = await getAuthHeader();
-      if (!token) {
-        setError("กรุณาเข้าสู่ระบบก่อนทำแบบทดสอบ");
-        return;
-      }
-      const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
-      const reqBody = { id: String(course.id), difficulty };
-      console.log("[Quiz] POST /quiz/generate body:", reqBody);
-      const res = await fetch(`${apiBaseUrl}/quiz/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", authorization: token },
-        body: JSON.stringify(reqBody),
-      });
-      if (!res.ok) {
-        const errText = await res.text();
-        console.error("[Quiz] error:", errText);
-        let errMsg = `HTTP ${res.status}`;
-        try {
-          errMsg = (JSON.parse(errText) as any).message ?? errMsg;
-        } catch {}
-        throw new Error(errMsg);
-      }
-      const data = await res.json();
-      router.push({
-        pathname: "/exam/[id]",
-        params: {
-          id: course.id,
-          quizData: JSON.stringify(data),
-          courseTitle: course.title,
-          difficulty,
-        },
-      } as any);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "เริ่มแบบทดสอบไม่ได้");
-    } finally {
-      setStarting(false);
-    }
+  const handlePress = () => {
+    router.push({
+      pathname: "/quiz/[id]",
+      params: {
+        id: course.id,
+        courseTitle: course.title,
+        subject: course.subject,
+        isEnrolled: isEnrolled ? "1" : "0",
+      },
+    } as any);
   };
 
   return (
-    <View
+    <TouchableOpacity
       style={[
         cardShadow,
         { backgroundColor: "#fff", borderRadius: 20, overflow: "hidden" },
       ]}
+      activeOpacity={0.75}
+      onPress={handlePress}
     >
-      {/* Card header — กดเพื่อ toggle detail */}
-      <TouchableOpacity onPress={onToggle} activeOpacity={0.75}>
-        <View style={{ flexDirection: "row" }}>
-          {course.thumbnailURL ? (
-            <Image
-              source={{ uri: course.thumbnailURL }}
-              style={{ width: 100, height: 100 }}
-              contentFit="cover"
-            />
-          ) : (
+      <View style={{ flexDirection: "row" }}>
+        {course.thumbnailURL ? (
+          <Image
+            source={{ uri: course.thumbnailURL }}
+            style={{ width: 100, height: 100 }}
+            contentFit="cover"
+          />
+        ) : (
+          <View
+            style={{
+              width: 100,
+              height: 100,
+              backgroundColor: color + "18",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Text style={{ fontSize: 36 }}>{icon}</Text>
+          </View>
+        )}
+        <View style={{ flex: 1, padding: 12 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              marginBottom: 4,
+              gap: 6,
+            }}
+          >
             <View
               style={{
-                width: 100,
-                height: 100,
-                backgroundColor: color + "18",
-                alignItems: "center",
-                justifyContent: "center",
+                backgroundColor: color + "20",
+                paddingHorizontal: 8,
+                paddingVertical: 2,
+                borderRadius: 20,
               }}
             >
-              <Text style={{ fontSize: 36 }}>{icon}</Text>
-            </View>
-          )}
-          <View style={{ flex: 1, padding: 12 }}>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginBottom: 4,
-                gap: 6,
-              }}
-            >
-              <View
-                style={{
-                  backgroundColor: color + "20",
-                  paddingHorizontal: 8,
-                  paddingVertical: 2,
-                  borderRadius: 20,
-                }}
-              >
-                <Text style={{ fontSize: 10, fontWeight: "700", color }}>
-                  {course.subject}
-                </Text>
-              </View>
-              <Text style={{ fontSize: 10, color: "#94A3B8" }}>
-                ม.{course.class}
+              <Text style={{ fontSize: 10, fontWeight: "700", color }}>
+                {course.subject}
               </Text>
             </View>
-            <Text
-              style={{
-                fontSize: 13,
-                fontWeight: "700",
-                color: "#0F172A",
-                lineHeight: 18,
-              }}
-              numberOfLines={2}
-            >
-              {course.title}
+            <Text style={{ fontSize: 10, color: "#94A3B8" }}>
+              ม.{course.class}
             </Text>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginTop: 6,
-                gap: 6,
-              }}
-            >
+          </View>
+          <Text
+            style={{
+              fontSize: 13,
+              fontWeight: "700",
+              color: "#0F172A",
+              lineHeight: 18,
+            }}
+            numberOfLines={2}
+          >
+            {course.title}
+          </Text>
+
+          {/* Status row */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              marginTop: 6,
+              gap: 6,
+              flexWrap: "wrap",
+            }}
+          >
+            {!isEnrolled ? (
               <View
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
-                  backgroundColor: "#8B5CF615",
-                  paddingHorizontal: 8,
+                  backgroundColor: "#FEF3C7",
+                  paddingHorizontal: 7,
                   paddingVertical: 3,
                   borderRadius: 8,
-                  gap: 4,
+                  gap: 3,
                 }}
               >
-                <ClipboardList size={10} color="#8B5CF6" />
+                <Lock size={9} color="#D97706" />
                 <Text
-                  style={{ fontSize: 10, fontWeight: "700", color: "#8B5CF6" }}
+                  style={{ fontSize: 10, fontWeight: "700", color: "#D97706" }}
+                >
+                  ยังไม่ได้ลงทะเบียน
+                </Text>
+              </View>
+            ) : !isOnline && savedDifficulties.length === 0 ? (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: "#F1F5F9",
+                  paddingHorizontal: 7,
+                  paddingVertical: 3,
+                  borderRadius: 8,
+                  gap: 3,
+                }}
+              >
+                <WifiOff size={9} color="#94A3B8" />
+                <Text
+                  style={{ fontSize: 10, fontWeight: "600", color: "#94A3B8" }}
+                >
+                  ไม่มีข้อสอบออฟไลน์
+                </Text>
+              </View>
+            ) : savedDifficulties.length > 0 ? (
+              savedDifficulties.map((d) => {
+                const dl = DIFFICULTY_LABELS.find((l) => l.key === d);
+                return (
+                  <View
+                    key={d}
+                    style={{
+                      backgroundColor: (dl?.color ?? "#8B5CF6") + "18",
+                      paddingHorizontal: 7,
+                      paddingVertical: 3,
+                      borderRadius: 8,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 10,
+                        fontWeight: "700",
+                        color: dl?.color ?? "#8B5CF6",
+                      }}
+                    >
+                      {d === "easy" ? "🟢" : d === "medium" ? "🟡" : "🔴"}{" "}
+                      {dl?.label}
+                    </Text>
+                  </View>
+                );
+              })
+            ) : (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: Palette.primaryBg,
+                  paddingHorizontal: 7,
+                  paddingVertical: 3,
+                  borderRadius: 8,
+                  gap: 3,
+                }}
+              >
+                <ClipboardList size={9} color={Palette.primary} />
+                <Text
+                  style={{
+                    fontSize: 10,
+                    fontWeight: "700",
+                    color: Palette.primary,
+                  }}
                 >
                   แบบทดสอบ
                 </Text>
               </View>
-              <Text
-                style={{
-                  fontSize: 10,
-                  color: isExpanded ? Palette.primary : "#94A3B8",
-                  fontWeight: "600",
-                }}
-              >
-                {isExpanded ? "▲ ซ่อน" : "▼ ดูรายละเอียด"}
-              </Text>
-            </View>
-          </View>
-        </View>
-      </TouchableOpacity>
-
-      {/* Expanded detail */}
-      {isExpanded && (
-        <View
-          style={{
-            padding: 16,
-            borderTopWidth: 1,
-            borderTopColor: "#F1F5F9",
-            gap: 12,
-          }}
-        >
-          {/* Difficulty selector */}
-          <View>
-            <Text
-              style={{
-                fontSize: 12,
-                fontWeight: "700",
-                color: "#334155",
-                marginBottom: 8,
-              }}
-            >
-              เลือกระดับความยาก
-            </Text>
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              {DIFFICULTY_LABELS.map((d) => (
-                <TouchableOpacity
-                  key={d.key}
-                  onPress={() => setDifficulty(d.key)}
-                  style={{
-                    flex: 1,
-                    paddingVertical: 10,
-                    borderRadius: 12,
-                    alignItems: "center",
-                    backgroundColor:
-                      difficulty === d.key ? d.color + "20" : "#F8FAFC",
-                    borderWidth: 1.5,
-                    borderColor: difficulty === d.key ? d.color : "#E2E8F0",
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={{
-                      fontSize: 13,
-                      fontWeight: "800",
-                      color: difficulty === d.key ? d.color : "#94A3B8",
-                    }}
-                  >
-                    {d.key === "easy" ? "🟢" : d.key === "medium" ? "🟡" : "🔴"}
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: 11,
-                      fontWeight: "700",
-                      color: difficulty === d.key ? d.color : "#94A3B8",
-                      marginTop: 2,
-                    }}
-                  >
-                    {d.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Error */}
-          {error && (
-            <View
-              style={{
-                backgroundColor: "#FEE2E2",
-                borderRadius: 10,
-                padding: 10,
-              }}
-            >
-              <Text style={{ fontSize: 12, color: "#EF4444" }}>{error}</Text>
-            </View>
-          )}
-
-          {/* Start button */}
-          <TouchableOpacity
-            onPress={handleStart}
-            disabled={starting}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              paddingVertical: 14,
-              borderRadius: 14,
-              backgroundColor: starting ? "#E2E8F0" : "#8B5CF6",
-              gap: 8,
-            }}
-            activeOpacity={0.85}
-          >
-            {starting ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <>
-                <Zap size={16} color="#fff" strokeWidth={2.5} />
-                <Text
-                  style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}
-                >
-                  เริ่มทำแบบทดสอบ
-                </Text>
-              </>
             )}
-          </TouchableOpacity>
+          </View>
         </View>
-      )}
-    </View>
+        {/* Arrow */}
+        <View style={{ justifyContent: "center", paddingRight: 14 }}>
+          <Text style={{ fontSize: 14, color: "#CBD5E1" }}>›</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
   );
 }
 
 function QuizTab({
   courses,
   initialCourseId,
+  enrolledIds,
 }: {
   courses: ApiCourse[];
   initialCourseId?: string;
+  enrolledIds: Set<string>;
 }) {
-  const [expandedId, setExpandedId] = useState<string | null>(
-    initialCourseId ?? null,
-  );
+  const router = useRouter();
+  const [savedMap, setSavedMap] = useState<
+    Record<string, Array<"easy" | "medium" | "hard">>
+  >({});
 
-  // Auto-expand เมื่อมี initialCourseId
   React.useEffect(() => {
-    if (initialCourseId) setExpandedId(initialCourseId);
-  }, [initialCourseId]);
+    // โหลด saved difficulties ของทุก course
+    Promise.all(
+      courses.map(async (c) => {
+        const diffs = await getAvailableSavedDifficulties(c.id);
+        return [c.id, diffs] as const;
+      }),
+    ).then((entries) => {
+      setSavedMap(Object.fromEntries(entries));
+    });
+  }, [courses]);
+
+  // Auto-navigate เมื่อมี initialCourseId
+  React.useEffect(() => {
+    if (initialCourseId && courses.length > 0) {
+      const course = courses.find((c) => c.id === initialCourseId);
+      if (course) {
+        router.push({
+          pathname: "/quiz/[id]",
+          params: {
+            id: course.id,
+            courseTitle: course.title,
+            subject: course.subject,
+            isEnrolled: enrolledIds.has(course.id) ? "1" : "0",
+          },
+        } as any);
+      }
+    }
+  }, [initialCourseId, courses, enrolledIds]);
 
   if (courses.length === 0) {
     return (
@@ -573,8 +527,8 @@ function QuizTab({
         <QuizCard
           key={c.id}
           course={c}
-          isExpanded={expandedId === c.id}
-          onToggle={() => setExpandedId(expandedId === c.id ? null : c.id)}
+          isEnrolled={enrolledIds.has(c.id)}
+          savedDifficulties={savedMap[c.id] ?? []}
         />
       ))}
     </View>
@@ -596,6 +550,7 @@ export default function ExploreScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progressMap, setProgressMap] = useState<Record<string, number>>({});
+  const [enrolledIds, setEnrolledIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<"courses" | "quiz">(
     quizCourseId ? "quiz" : (initialTab ?? "courses"),
   );
@@ -605,6 +560,17 @@ export default function ExploreScreen() {
     if (quizCourseId) setActiveTab("quiz");
     else if (initialTab) setActiveTab(initialTab);
   }, [quizCourseId, initialTab]);
+
+  const loadEnrolledIds = useCallback(async (courseList: ApiCourse[]) => {
+    const ids = new Set<string>();
+    await Promise.all(
+      courseList.map(async (c) => {
+        const val = await AsyncStorage.getItem(`@enrolled_${c.id}`);
+        if (val === "1") ids.add(c.id);
+      }),
+    );
+    setEnrolledIds(ids);
+  }, []);
 
   const loadProgressMap = useCallback(async (courseList: ApiCourse[]) => {
     const map: Record<string, number> = {};
@@ -635,6 +601,7 @@ export default function ExploreScreen() {
           }));
           setCourses(offlineCourses);
           loadProgressMap(offlineCourses);
+          loadEnrolledIds(offlineCourses);
           return;
         }
 
@@ -651,6 +618,7 @@ export default function ExploreScreen() {
           : (data.courses ?? []);
         setCourses(list);
         loadProgressMap(list);
+        loadEnrolledIds(list);
       } catch (e) {
         setError(e instanceof Error ? e.message : "โหลดข้อมูลไม่ได้");
       } finally {
@@ -669,11 +637,14 @@ export default function ExploreScreen() {
     fetchCourses();
   }, [fetchCourses, isOnline]);
 
-  // Reload progress every time tab comes into focus
+  // Reload progress and enrolled state every time tab comes into focus
   useFocusEffect(
     useCallback(() => {
-      if (courses.length > 0) loadProgressMap(courses);
-    }, [courses, loadProgressMap]),
+      if (courses.length > 0) {
+        loadProgressMap(courses);
+        loadEnrolledIds(courses);
+      }
+    }, [courses, loadProgressMap, loadEnrolledIds]),
   );
 
   return (
@@ -736,7 +707,10 @@ export default function ExploreScreen() {
       {/* Content */}
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 40, paddingTop: 8 }}
+        contentContainerStyle={{
+          paddingBottom: 80 + insets.bottom + 16,
+          paddingTop: 8,
+        }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -762,7 +736,11 @@ export default function ExploreScreen() {
           />
         )}
         {isOnline && activeTab === "quiz" && (
-          <QuizTab courses={courses} initialCourseId={quizCourseId} />
+          <QuizTab
+            courses={courses}
+            initialCourseId={quizCourseId}
+            enrolledIds={enrolledIds}
+          />
         )}
       </ScrollView>
     </View>
