@@ -10,10 +10,11 @@ import {
     RotateCcw,
     XCircle,
 } from "lucide-react-native";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
+    BackHandler,
     Platform,
     ScrollView,
     Text,
@@ -192,6 +193,33 @@ export default function ExamScreen() {
     setShowExplanation(false);
     setPhase("exam");
   };
+
+  const handleBackPress = () => {
+    if (phase === "result") {
+      router.back();
+      return;
+    }
+    Alert.alert("ออกจากแบบทดสอบ?", "ความคืบหน้าจะหายไปทั้งหมด", [
+      { text: "ทำต่อ", style: "cancel" },
+      { text: "ออก", style: "destructive", onPress: () => router.back() },
+    ]);
+  };
+
+  // Block hardware/gesture back ระหว่างทำข้อสอบ
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        if (phase === "result") return false; // ให้ back ได้ปกติ
+        Alert.alert("ออกจากแบบทดสอบ?", "ความคืบหน้าจะหายไปทั้งหมด", [
+          { text: "ทำต่อ", style: "cancel" },
+          { text: "ออก", style: "destructive", onPress: () => router.back() },
+        ]);
+        return true; // block default back
+      },
+    );
+    return () => subscription.remove();
+  }, [phase]);
 
   const scorePercent =
     questions.length > 0 ? Math.round((score / questions.length) * 100) : 0;
@@ -553,7 +581,12 @@ export default function ExamScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: false }} />
+      <Stack.Screen
+        options={{
+          headerShown: false,
+          gestureEnabled: phase === "result",
+        }}
+      />
       <View className="flex-1 bg-surface-alt">
         {/* Gradient Header */}
         <View className="relative" style={{ height: 130 + insets.top }}>
@@ -577,7 +610,7 @@ export default function ExamScreen() {
           <View className="px-5 pb-5" style={{ paddingTop: insets.top + 8 }}>
             <View className="flex-row items-center">
               <TouchableOpacity
-                onPress={() => router.back()}
+                onPress={handleBackPress}
                 className="w-10 h-10 rounded-full bg-white/20 items-center justify-center mr-3"
                 activeOpacity={0.7}
               >

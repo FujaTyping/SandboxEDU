@@ -1,57 +1,57 @@
 /**
  * Single Source of Truth for all app colors
- * Fixed theme: Sky/Cerulean Blue + Gold + White (no auto dark mode)
+ * Theme: Primary Blue #2A6EDF + Vibrant Orange #FF8C00 + Dark Blue Shadow #1A458B
  */
 
 export const AppColors = {
-  // Primary — Sky Blue
-  primary: "#0EA5E9", // sky-500
-  primaryLight: "#38BDF8", // sky-400
-  primaryDark: "#0284C7", // sky-600
-  primaryBg: "#E0F2FE", // sky-100
+  // Primary — Primary Blue
+  primary: "#2A6EDF",
+  primaryLight: "#5B93F0",
+  primaryDark: "#1A458B",
+  primaryBg: "#E8EFFC",
 
-  // Accent — Amber / Gold
-  accent: "#F59E0B", // amber-500
-  accentLight: "#FDE68A", // amber-200
-  accentDark: "#B45309", // amber-700
+  // Accent — Vibrant Orange (highlights, important icons)
+  accent: "#FF8C00",
+  accentLight: "#FFD580",
+  accentDark: "#CC7000",
 
   // Semantic
   success: "#10B981",
   successLight: "#D1FAE5",
-  info: "#0EA5E9",
-  infoLight: "#E0F2FE",
-  warning: "#F59E0B",
+  info: "#2A6EDF",
+  infoLight: "#E8EFFC",
+  warning: "#FF8C00",
   danger: "#EF4444",
   dangerLight: "#FEE2E2",
   dangerBorder: "#FECACA",
-  exam: "#8B5CF6",
-  examLight: "#EDE9FE",
+  exam: "#FF8C00",
+  examLight: "#FFF3E0",
 
   // Neutrals
   text: "#0F172A",
   textSecondary: "#334155",
   textMuted: "#64748B",
   surface: "#FFFFFF",
-  surfaceAlt: "#F0F9FF", // sky-50
-  border: "#BAE6FD", // sky-200
-  borderLight: "#E0F2FE", // sky-100
-  disabled: "#94A3B8",
+  surfaceAlt: "#F4F7FD",
+  border: "#E0E0E0",
+  borderLight: "#EEEEEE",
+  disabled: "#E0E0E0",
 
-  // Gradient — sky blue diagonal
-  gradientStart: "#0284C7", // sky-600
-  gradientMid: "#0EA5E9", // sky-500
-  gradientEnd: "#38BDF8", // sky-400
+  // Gradient — Dark Blue → Primary Blue
+  gradientStart: "#1A458B",
+  gradientMid: "#2A6EDF",
+  gradientEnd: "#5B93F0",
 
   // Subject card backgrounds
-  subjectCards: ["#0EA5E9", "#F59E0B", "#8B5CF6", "#10B981"],
+  subjectCards: ["#2A6EDF", "#FF8C00", "#8B5CF6", "#10B981"],
 
   // Donut chart pairs
-  donutStudy: { color: "#0EA5E9", end: "#38BDF8", track: "#E0F2FE" },
-  donutExam: { color: "#F59E0B", end: "#FDE68A", track: "#FFFBEB" },
+  donutStudy: { color: "#2A6EDF", end: "#5B93F0", track: "#E8EFFC" },
+  donutExam: { color: "#FF8C00", end: "#FFD580", track: "#FFF3E0" },
 
   // Bar chart
-  barStart: "#0EA5E9",
-  barEnd: "#38BDF8",
+  barStart: "#2A6EDF",
+  barEnd: "#5B93F0",
 } as const;
 
 // DarkColors kept as alias to AppColors — auto theme disabled

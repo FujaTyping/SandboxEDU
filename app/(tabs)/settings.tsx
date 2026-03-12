@@ -143,7 +143,10 @@ export default function SettingsScreen() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: Palette.surfaceAlt }}
-      contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: 48 }}
+      contentContainerStyle={{
+        paddingTop: insets.top + 16,
+        paddingBottom: 80 + insets.bottom + 16,
+      }}
       showsVerticalScrollIndicator={false}
     >
       <Text
