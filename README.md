@@ -193,8 +193,3 @@ lib/
 1. ไปที่แท็บ **ตั้งค่า**
 2. กด **ซิงค์ข้อมูล**
 
----
-
-## License
-
-Private — All rights reserved.
