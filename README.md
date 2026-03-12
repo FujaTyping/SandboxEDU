@@ -1,15 +1,10 @@
-# Elysia with Bun runtime
+# SandboxEDU API
 
-## Getting Started
-To get started with this template, simply paste this command into your terminal:
-```bash
-bun create elysia ./elysia-example
-```
+ระบบ Backend สำหรับ Sandbox.EDU แอปพลิเคชันการเรียนรู้แบบปรับตัวเฉพาะบุคคลที่เน้นการทำงานแบบออฟไลน์เป็นหลัก Offline, API นี้ทำหน้าที่จัดการการซิงก์ข้อมูล, การยืนยันตัวตนผู้ใช้งาน และการส่งมอบเนื้อหาวิดีโอการเรียนการสอน
 
-## Development
-To start the development server run:
-```bash
-bun run dev
-```
+### เทคโนโลยีที่ใช้ (Tech Stack)
 
-Open http://localhost:3000/ with your browser to see the result.
+* **Runtime:** [Bun](https://bun.sh/) - รันไทม์ JavaScript ที่มีความเร็วสูงมาก
+* **Framework:** [ElysiaJS](https://elysiajs.com/) - เว็บเฟรมเวิร์กที่เร็วและออกแบบมาเพื่อ Bun โดยเฉพาะ
+* **Database & Storage:** [Supabase](https://supabase.com/) - ฐานข้อมูล PostgreSQL และระบบ Object Storage สำหรับเก็บไฟล์วิดีโอ
+* **Authentication:** JWT (JSON Web Tokens) / Supabase Authentication

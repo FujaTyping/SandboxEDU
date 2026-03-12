@@ -3,7 +3,7 @@ import { t } from "elysia";
 import verify from "../../lib/verify";
 import { z } from "zod"
 import ai from "../../lib/gemini";
-import { model } from "../config.json"
+import { JSONmodel } from "../config.json"
 
 const getUserHeaders = t.Object({
     authorization: t.String() // Bearer Token
@@ -50,20 +50,25 @@ export default (app: ElysiaApp) => app
             userQuizMsg += `เนื้อหา ${item.title} ระดับชั้น ม.${item.class} ทำภูก ${item.correct} ข้อ และ ทำผิด ${item.wrong} ข้อ\n`
         })
 
-        const response = await ai.models.generateContent({
-            model: `${model}`,
-            contents: `ช่วยวิเคาห์ข้อมูลผู้เรียนจากการทำแบบทดสอบ ของนักเรียน ${v.displayName} เพื่อจะได้นำมาแสดงเป็นกราฟ โดยมีข้อมูลดั้งนี้ ${userQuizMsg}
+        try {
+            const response = await ai.models.generateContent({
+                model: `${JSONmodel}`,
+                contents: `ช่วยวิเคาห์ข้อมูลผู้เรียนจากการทำแบบทดสอบ ของนักเรียน ${v.displayName} เพื่อจะได้นำมาแสดงเป็นกราฟ โดยมีข้อมูลดั้งนี้ ${userQuizMsg}
             
-            หากวิชาไหนไม่มีข้อมูลให้ใส่ 0
-            คำตอบของคุณต้องเป็น JSON object ที่สอดคล้องกับ schema ที่ให้มาเท่านั้น
-            `,
-            config: {
-                responseMimeType: "application/json",
-                responseJsonSchema: analyzeSkillResponseSchema.toJSONSchema()
-            }
-        });
+                หากวิชาไหนไม่มีข้อมูลให้ใส่ 0
+                คำตอบของคุณต้องเป็น JSON object ที่สอดคล้องกับ schema ที่ให้มาเท่านั้น
+                `,
+                config: {
+                    responseMimeType: "application/json",
+                    responseJsonSchema: analyzeSkillResponseSchema.toJSONSchema()
+                }
+            });
 
-        return response.text;
+            return response.text;
+        } catch (error: any) {
+            set.status = 400;
+            return error.message
+        }
     }, {
         headers: getUserHeaders
     })
