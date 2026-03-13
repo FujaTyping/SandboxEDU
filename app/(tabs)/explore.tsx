@@ -36,13 +36,14 @@ interface ApiCourse {
 }
 
 const SUBJECT_COLOR: Record<string, string> = {
-  คณิตศาสตร์: "#3B82F6",
+  คณิตศาสตร์: "#2A6EDF",
   ฟิสิกส์: "#10B981",
-  เคมี: "#F59E0B",
+  เคมี: "#FF8C00",
   ชีววิทยา: "#22C55E",
   ภาษาไทย: "#EC4899",
   สังคม: "#8B5CF6",
   ภาษาอังกฤษ: "#6366F1",
+  ดนตรี: "#F43F5E",
 };
 
 const SUBJECT_ICON: Record<string, string> = {
@@ -132,7 +133,7 @@ function CourseCard({
             {course.title}
           </Text>
           {course.by && (
-            <Text className="text-[10px] text-brand-disabled mt-1">
+            <Text className="text-[10px] text-brand-muted mt-1">
               โดย {course.by}
             </Text>
           )}
@@ -476,12 +477,14 @@ function QuizTab({
   enrolledIds: Set<string>;
 }) {
   const router = useRouter();
+  const { isOnline } = useNetworkStatus();
   const [savedMap, setSavedMap] = useState<
     Record<string, Array<"easy" | "medium" | "hard">>
   >({});
+  const [savedMapLoaded, setSavedMapLoaded] = useState(false);
 
   React.useEffect(() => {
-    // โหลด saved difficulties ของทุก course
+    setSavedMapLoaded(false);
     Promise.all(
       courses.map(async (c) => {
         const diffs = await getAvailableSavedDifficulties(c.id);
@@ -489,6 +492,7 @@ function QuizTab({
       }),
     ).then((entries) => {
       setSavedMap(Object.fromEntries(entries));
+      setSavedMapLoaded(true);
     });
   }, [courses]);
 
@@ -510,6 +514,26 @@ function QuizTab({
     }
   }, [initialCourseId, courses, enrolledIds]);
 
+  // ตอน offline กรองเฉพาะ course ที่มี saved quiz
+  const visibleCourses =
+    !isOnline && savedMapLoaded
+      ? courses.filter((c) => (savedMap[c.id] ?? []).length > 0)
+      : courses;
+
+  if (!isOnline && savedMapLoaded && visibleCourses.length === 0) {
+    return (
+      <View className="items-center py-24 px-6">
+        <WifiOff size={40} color="#CBD5E1" strokeWidth={1.5} />
+        <Text className="text-brand-muted text-sm mt-3 text-center font-semibold">
+          ไม่มีข้อสอบที่ดาวน์โหลดไว้
+        </Text>
+        <Text className="text-brand-muted text-xs mt-1 text-center">
+          เชื่อมต่ออินเทอร์เน็ตแล้วดาวน์โหลดข้อสอบก่อนใช้งาน offline
+        </Text>
+      </View>
+    );
+  }
+
   if (courses.length === 0) {
     return (
       <View className="items-center py-24 px-6">
@@ -523,7 +547,7 @@ function QuizTab({
 
   return (
     <View className="px-6" style={{ gap: 12 }}>
-      {courses.map((c) => (
+      {visibleCourses.map((c) => (
         <QuizCard
           key={c.id}
           course={c}
@@ -669,39 +693,37 @@ export default function ExploreScreen() {
             </TouchableOpacity>
           )}
         </View>
-        {/* Tab selector — ซ่อน quiz tab ตอน offline */}
-        {isOnline && (
-          <View style={{ flexDirection: "row", gap: 8, marginBottom: 4 }}>
-            {(["courses", "quiz"] as const).map((tab) => (
-              <TouchableOpacity
-                key={tab}
-                onPress={() => setActiveTab(tab)}
+        {/* Tab selector */}
+        <View style={{ flexDirection: "row", gap: 8, marginBottom: 4 }}>
+          {(["courses", "quiz"] as const).map((tab) => (
+            <TouchableOpacity
+              key={tab}
+              onPress={() => setActiveTab(tab)}
+              style={{
+                flex: 1,
+                paddingVertical: 9,
+                borderRadius: 12,
+                alignItems: "center",
+                backgroundColor:
+                  activeTab === tab ? Palette.primary : Palette.surfaceAlt,
+                borderWidth: 1.5,
+                borderColor:
+                  activeTab === tab ? Palette.primary : Palette.borderLight,
+              }}
+              activeOpacity={0.8}
+            >
+              <Text
                 style={{
-                  flex: 1,
-                  paddingVertical: 9,
-                  borderRadius: 12,
-                  alignItems: "center",
-                  backgroundColor:
-                    activeTab === tab ? Palette.primary : Palette.surfaceAlt,
-                  borderWidth: 1.5,
-                  borderColor:
-                    activeTab === tab ? Palette.primary : Palette.borderLight,
+                  fontSize: 13,
+                  fontWeight: "700",
+                  color: activeTab === tab ? "#fff" : Palette.textMuted,
                 }}
-                activeOpacity={0.8}
               >
-                <Text
-                  style={{
-                    fontSize: 13,
-                    fontWeight: "700",
-                    color: activeTab === tab ? "#fff" : Palette.textMuted,
-                  }}
-                >
-                  {tab === "courses" ? "📚 บทเรียน" : "✏️ แบบทดสอบ"}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+                {tab === "courses" ? "📚 บทเรียน" : "✏️ แบบทดสอบ"}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
 
       {/* Content */}
@@ -720,7 +742,7 @@ export default function ExploreScreen() {
           />
         }
       >
-        {(!isOnline || activeTab === "courses") && (
+        {activeTab === "courses" && (
           <CoursesTab
             courses={courses}
             loading={loading}
@@ -735,7 +757,7 @@ export default function ExploreScreen() {
             }
           />
         )}
-        {isOnline && activeTab === "quiz" && (
+        {activeTab === "quiz" && (
           <QuizTab
             courses={courses}
             initialCourseId={quizCourseId}
