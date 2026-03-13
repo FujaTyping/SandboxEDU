@@ -11,35 +11,35 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
 import { useFocusEffect, useRouter } from "expo-router";
 import {
-    BookOpen,
-    ChevronRight,
-    GraduationCap,
-    Pencil,
-    RefreshCw,
+  BookOpen,
+  ChevronRight,
+  GraduationCap,
+  Pencil,
+  RefreshCw,
 } from "lucide-react-native";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    Platform,
-    ScrollView,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Platform,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, {
-    Circle,
-    Defs,
-    Line,
-    LinearGradient,
-    Path,
-    Polygon,
-    Polyline,
-    Rect,
-    Stop,
-    Text as SvgText,
+  Circle,
+  Defs,
+  Line,
+  LinearGradient,
+  Path,
+  Polygon,
+  Polyline,
+  Rect,
+  Stop,
+  Text as SvgText,
 } from "react-native-svg";
 
 const DEFAULT_AVATAR = "https://i.pravatar.cc/512";
@@ -608,7 +608,19 @@ export default function HomeScreen() {
   const fetchStats = useCallback(async () => {
     try {
       const allProgress = await getAllVideoProgress();
-      const values = Object.values(allProgress).map((p) => p.percentage);
+      const allKeys = await AsyncStorage.getAllKeys();
+      const enrolledIds = new Set(
+        (
+          await AsyncStorage.multiGet(
+            allKeys.filter((k) => k.startsWith("@enrolled_")),
+          )
+        )
+          .filter(([, v]) => v === "1")
+          .map(([k]) => k.replace("@enrolled_", "")),
+      );
+      const values = Object.values(allProgress)
+        .filter((p) => enrolledIds.has(p.courseId))
+        .map((p) => p.percentage);
       const avg =
         values.length > 0
           ? values.reduce((a, b) => a + b, 0) / values.length
