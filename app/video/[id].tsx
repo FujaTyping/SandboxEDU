@@ -36,8 +36,33 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import Markdown from "react-native-markdown-display";
 import MathJaxView from "react-native-mathjax";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Circle, Path } from "react-native-svg";
+
+function SparklesIcon({
+  size = 24,
+  color = "currentColor",
+}: {
+  size?: number;
+  color?: string;
+}) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path d="M20 2v4" stroke={color} strokeWidth="2" strokeLinecap="round" />
+      <Path d="M22 4h-4" stroke={color} strokeWidth="2" strokeLinecap="round" />
+      <Circle cx="4" cy="20" r="2" stroke={color} strokeWidth="2" />
+    </Svg>
+  );
+}
 
 interface CourseDetail {
   id: string;
@@ -1426,6 +1451,9 @@ export default function VideoScreen() {
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [watchProgress, setWatchProgress] = useState<number>(0);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
 
   const ENROLL_KEY = `@enrolled_${id}`;
 
@@ -1602,6 +1630,49 @@ export default function VideoScreen() {
     ? (SUBJECT_COLOR[course.subject] ?? Palette.primary)
     : Palette.primary;
   const displayTitle = course?.title ?? courseTitle ?? "คอร์สเรียน";
+
+  const handleSummarize = async () => {
+    if (!id) return;
+    setSummaryLoading(true);
+    try {
+      const token = await getToken();
+      if (!token) {
+        Alert.alert("กรุณาเข้าสู่ระบบก่อน");
+        setSummaryLoading(false);
+        return;
+      }
+      const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
+      const res = await fetch(`${apiBase}/content/summarize/${id}`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as any).message ?? `HTTP ${res.status}`);
+      }
+      const raw = await res.text();
+      // รองรับทั้ง plain text และ JSON { summary/content/text }
+      let text = raw;
+      try {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed === "string") {
+          text = parsed;
+        } else if (parsed && typeof parsed === "object") {
+          text = parsed.summary ?? parsed.content ?? parsed.text ?? raw;
+        }
+      } catch {
+        // plain text — ใช้ raw ตรงๆ
+      }
+      setSummary(text);
+      setSummaryExpanded(true);
+    } catch (e) {
+      Alert.alert(
+        "สรุปเนื้อหาไม่สำเร็จ",
+        e instanceof Error ? e.message : "ลองใหม่อีกครั้ง",
+      );
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
 
   // Refresh watchProgress when returning from player
   const handlePlayerBack = async () => {
@@ -2016,14 +2087,192 @@ export default function VideoScreen() {
                 </View>
               </View>
 
+              {/* ── Summary Card ── */}
+              {enrolled && (
+                <View
+                  style={[
+                    cardShadow,
+                    {
+                      backgroundColor: "#fff",
+                      borderRadius: 20,
+                      padding: 20,
+                      marginTop: 4,
+                      borderLeftWidth: 4,
+                      borderLeftColor: "#8B5CF6",
+                    },
+                  ]}
+                >
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={
+                      summary
+                        ? () => setSummaryExpanded((v) => !v)
+                        : handleSummarize
+                    }
+                    disabled={summaryLoading}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 12,
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: 22,
+                          backgroundColor: "#8B5CF615",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        {summaryLoading ? (
+                          <ActivityIndicator size="small" color="#8B5CF6" />
+                        ) : (
+                          <SparklesIcon size={22} color="#8B5CF6" />
+                        )}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={{
+                            fontWeight: "800",
+                            fontSize: 15,
+                            color: "#111",
+                          }}
+                        >
+                          สรุปเนื้อหา AI
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: "#64748B",
+                            marginTop: 2,
+                          }}
+                        >
+                          {summary
+                            ? summaryExpanded
+                              ? "กดเพื่อย่อ"
+                              : "กดเพื่อดูสรุป"
+                            : summaryLoading
+                              ? "กำลังสรุปเนื้อหา..."
+                              : "สรุปเนื้อหาคอร์สด้วย AI"}
+                        </Text>
+                      </View>
+                      {!summary && !summaryLoading && (
+                        <View
+                          style={{
+                            backgroundColor: "#8B5CF6",
+                            paddingHorizontal: 14,
+                            paddingVertical: 8,
+                            borderRadius: 12,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                        >
+                          <SparklesIcon size={14} color="#fff" />
+                          <Text
+                            style={{
+                              color: "#fff",
+                              fontWeight: "800",
+                              fontSize: 13,
+                            }}
+                          >
+                            สรุป
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+
+                  {summary && summaryExpanded && (
+                    <View
+                      style={{
+                        marginTop: 14,
+                        paddingTop: 14,
+                        borderTopWidth: 1,
+                        borderTopColor: "#F1F5F9",
+                      }}
+                    >
+                      <Markdown
+                        style={{
+                          body: {
+                            fontSize: 14,
+                            color: "#334155",
+                            lineHeight: 22,
+                          },
+                          heading1: {
+                            fontSize: 17,
+                            fontWeight: "800",
+                            color: "#111",
+                            marginBottom: 4,
+                          },
+                          heading2: {
+                            fontSize: 15,
+                            fontWeight: "700",
+                            color: "#1E293B",
+                            marginBottom: 4,
+                          },
+                          heading3: {
+                            fontSize: 14,
+                            fontWeight: "700",
+                            color: "#1E293B",
+                          },
+                          bullet_list: { marginLeft: 4 },
+                          ordered_list: { marginLeft: 4 },
+                          strong: { fontWeight: "800", color: "#111" },
+                          code_inline: {
+                            backgroundColor: "#F1F5F9",
+                            color: "#7C3AED",
+                            borderRadius: 4,
+                            paddingHorizontal: 4,
+                            fontSize: 12,
+                          },
+                          fence: {
+                            backgroundColor: "#F8FAFC",
+                            borderRadius: 8,
+                            padding: 10,
+                          },
+                        }}
+                      >
+                        {summary ?? ""}
+                      </Markdown>
+                      <TouchableOpacity
+                        onPress={handleSummarize}
+                        disabled={summaryLoading}
+                        style={{ marginTop: 10, alignSelf: "flex-end" }}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: "#8B5CF6",
+                            fontWeight: "700",
+                          }}
+                        >
+                          {summaryLoading ? "กำลังโหลด..." : "โหลดใหม่"}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              )}
+
               {/* ── Quiz Card ── */}
               {enrolled && (
                 <TouchableOpacity
                   activeOpacity={0.85}
                   onPress={() =>
                     router.push({
-                      pathname: "/(tabs)/explore",
-                      params: { quizCourseId: id },
+                      pathname: "/quiz/[id]",
+                      params: {
+                        id,
+                        courseTitle: course.title,
+                        subject: course.subject,
+                        isEnrolled: "1",
+                      },
                     } as any)
                   }
                   style={[

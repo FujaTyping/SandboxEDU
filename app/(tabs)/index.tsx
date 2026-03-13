@@ -5,47 +5,45 @@ import { getJwtWithRefresh } from "@/lib/auth/jwtRefresh";
 import { getJwt } from "@/lib/auth/token";
 import { getUserCache, saveUserCache } from "@/lib/cache/userCache";
 import { getQuizHistory, QuizRecord } from "@/lib/progress/quizHistory";
+import { calculateStreak, StreakResult } from "@/lib/progress/streak";
 import { getAllVideoProgress } from "@/lib/progress/videoProgress";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
 import { useFocusEffect, useRouter } from "expo-router";
 import {
-  BookOpen,
-  ChevronRight,
-  GraduationCap,
-  Pencil,
-  RefreshCw,
+    BookOpen,
+    ChevronRight,
+    GraduationCap,
+    Pencil,
+    RefreshCw,
 } from "lucide-react-native";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  Platform,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    Platform,
+    ScrollView,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, {
-  Circle,
-  Defs,
-  Line,
-  LinearGradient,
-  Path,
-  Polygon,
-  Polyline,
-  Rect,
-  Stop,
-  Text as SvgText,
+    Circle,
+    Defs,
+    Line,
+    LinearGradient,
+    Path,
+    Polygon,
+    Polyline,
+    Rect,
+    Stop,
+    Text as SvgText,
 } from "react-native-svg";
 
 const DEFAULT_AVATAR = "https://i.pravatar.cc/512";
 
-const RADAR_SIZE = 300;
-const RADAR_CX = RADAR_SIZE / 2;
-const RADAR_CY = RADAR_SIZE / 2;
-const RADAR_R = 86;
 const RADAR_LEVELS = 4;
 
 function polarToXY(angleDeg: number, r: number, cx: number, cy: number) {
@@ -56,144 +54,169 @@ function polarToXY(angleDeg: number, r: number, cx: number, cy: number) {
 function RadarChart({ data }: { data: Record<string, number> }) {
   const entries = Object.entries(data).slice(0, 7);
   const n = entries.length;
+  const [size, setSize] = useState(0);
+
+  const computed = useMemo(() => {
+    if (n < 3 || size === 0) return null;
+    const cx = size / 2;
+    const cy = size / 2;
+    // label padding: เผื่อพื้นที่รอบนอกสำหรับ label
+    const labelPad = 52;
+    const r = size / 2 - labelPad;
+    const angleStep = 360 / n;
+    const primaryColor = "#2A6EDF";
+    const fillColor = "#2A6EDF40";
+
+    // normalize ตาม maxScore จริง ทำให้กราฟใหญ่สุดเสมอ
+    const rawScores = entries.map(([, s]) => Number(s));
+    const maxScore = Math.max(...rawScores, 1); // ป้องกัน max = 0
+
+    const gridPolygons = Array.from({ length: RADAR_LEVELS }, (_, li) => {
+      const gr = (r * (li + 1)) / RADAR_LEVELS;
+      return entries
+        .map((_, i) => {
+          const { x, y } = polarToXY(i * angleStep, gr, cx, cy);
+          return `${x},${y}`;
+        })
+        .join(" ");
+    });
+
+    const axes = entries.map((_, i) => polarToXY(i * angleStep, r, cx, cy));
+
+    const dataPoints = entries.map(([, score], i) => {
+      const raw = Math.max(0, Number(score));
+      const pct = raw / maxScore; // normalize ตาม max จริง
+      const { x, y } = polarToXY(i * angleStep, r * pct, cx, cy);
+      return { x, y, pct, label: entries[i][0], score: raw, maxScore };
+    });
+    const dataPolygonPts = dataPoints.map((p) => `${p.x},${p.y}`).join(" ");
+
+    return {
+      cx,
+      cy,
+      r,
+      angleStep,
+      primaryColor,
+      fillColor,
+      gridPolygons,
+      axes,
+      dataPoints,
+      dataPolygonPts,
+    };
+  }, [n, size, entries]);
+
   if (n < 3) return null;
 
-  const angleStep = 360 / n;
-  const primaryColor = "#38BDF8";
-  const fillColor = "#38BDF840";
-
-  // grid polygons
-  const gridPolygons = Array.from({ length: RADAR_LEVELS }, (_, li) => {
-    const r = (RADAR_R * (li + 1)) / RADAR_LEVELS;
-    const pts = entries.map((_, i) => {
-      const { x, y } = polarToXY(i * angleStep, r, RADAR_CX, RADAR_CY);
-      return `${x},${y}`;
-    });
-    return pts.join(" ");
-  });
-
-  // axis lines
-  const axes = entries.map((_, i) => {
-    const end = polarToXY(i * angleStep, RADAR_R, RADAR_CX, RADAR_CY);
-    return end;
-  });
-
-  // data polygon
-  const dataPoints = entries.map(([, score], i) => {
-    const pct = Math.min(100, Math.max(0, Number(score))) / 100;
-    const { x, y } = polarToXY(
-      i * angleStep,
-      RADAR_R * pct,
-      RADAR_CX,
-      RADAR_CY,
-    );
-    return { x, y, pct, label: entries[i][0], score: Number(entries[i][1]) };
-  });
-  const dataPolygonPts = dataPoints.map((p) => `${p.x},${p.y}`).join(" ");
-
   return (
-    <View style={{ alignItems: "center" }}>
-      <Svg width={RADAR_SIZE} height={RADAR_SIZE}>
-        {/* Grid rings */}
-        {gridPolygons.map((pts, li) => (
+    <View
+      style={{ alignItems: "center" }}
+      onLayout={(e) => setSize(e.nativeEvent.layout.width)}
+    >
+      {computed && (
+        <Svg width={size} height={size}>
+          {/* Grid rings */}
+          {computed.gridPolygons.map((pts, li) => (
+            <Polygon
+              key={`grid-${li}`}
+              points={pts}
+              fill="none"
+              stroke="#E2E8F0"
+              strokeWidth={1}
+            />
+          ))}
+
+          {/* Axis lines */}
+          {computed.axes.map((end, i) => (
+            <Line
+              key={`axis-${i}`}
+              x1={computed.cx}
+              y1={computed.cy}
+              x2={end.x}
+              y2={end.y}
+              stroke="#E2E8F0"
+              strokeWidth={1}
+            />
+          ))}
+
+          {/* Data filled polygon */}
           <Polygon
-            key={`grid-${li}`}
-            points={pts}
-            fill="none"
-            stroke="#E2E8F0"
-            strokeWidth={1}
+            points={computed.dataPolygonPts}
+            fill={computed.fillColor}
+            stroke={computed.primaryColor}
+            strokeWidth={2}
+            strokeLinejoin="round"
           />
-        ))}
 
-        {/* Axis lines */}
-        {axes.map((end, i) => (
-          <Line
-            key={`axis-${i}`}
-            x1={RADAR_CX}
-            y1={RADAR_CY}
-            x2={end.x}
-            y2={end.y}
-            stroke="#E2E8F0"
-            strokeWidth={1}
-          />
-        ))}
+          {/* Data dots */}
+          {computed.dataPoints.map((p, i) => (
+            <Circle
+              key={`dot-${i}`}
+              cx={p.x}
+              cy={p.y}
+              r={4}
+              fill={computed.primaryColor}
+              stroke="#fff"
+              strokeWidth={1.5}
+            />
+          ))}
 
-        {/* Data filled polygon */}
-        <Polygon
-          points={dataPolygonPts}
-          fill={fillColor}
-          stroke={primaryColor}
-          strokeWidth={2}
-          strokeLinejoin="round"
-        />
-
-        {/* Data dots */}
-        {dataPoints.map((p, i) => (
-          <Circle
-            key={`dot-${i}`}
-            cx={p.x}
-            cy={p.y}
-            r={4}
-            fill={primaryColor}
-            stroke="#fff"
-            strokeWidth={1.5}
-          />
-        ))}
-
-        {/* Labels */}
-        {dataPoints.map((p, i) => {
-          const labelPos = polarToXY(
-            i * angleStep,
-            RADAR_R + 28,
-            RADAR_CX,
-            RADAR_CY,
-          );
-          const scoreColor =
-            p.score >= 70 ? "#22C55E" : p.score >= 40 ? "#F59E0B" : "#EF4444";
-          const chars = [...p.label];
-          const line1 = chars.length > 5 ? chars.slice(0, 5).join("") : p.label;
-          const line2raw = chars.length > 5 ? chars.slice(5).join("") : "";
-          const line2 =
-            line2raw.length > 4 ? line2raw.slice(0, 4) + "…" : line2raw;
-          const hasLine2 = line2.length > 0;
-          return (
-            <React.Fragment key={`label-${i}`}>
-              <SvgText
-                x={labelPos.x}
-                y={hasLine2 ? labelPos.y - 11 : labelPos.y - 4}
-                textAnchor="middle"
-                fontSize="10"
-                fontWeight="700"
-                fill="#1E293B"
-              >
-                {line1}
-              </SvgText>
-              {hasLine2 && (
+          {/* Labels */}
+          {computed.dataPoints.map((p, i) => {
+            const labelPos = polarToXY(
+              i * computed.angleStep,
+              computed.r + 28,
+              computed.cx,
+              computed.cy,
+            );
+            // ใช้ pct (0-1) normalize เพื่อ threshold สี
+            const scoreColor =
+              p.pct >= 0.7 ? "#22C55E" : p.pct >= 0.4 ? "#F59E0B" : "#EF4444";
+            const chars = [...p.label];
+            const line1 =
+              chars.length > 5 ? chars.slice(0, 5).join("") : p.label;
+            const line2raw = chars.length > 5 ? chars.slice(5).join("") : "";
+            const line2 =
+              line2raw.length > 4 ? line2raw.slice(0, 4) + "…" : line2raw;
+            const hasLine2 = line2.length > 0;
+            return (
+              <React.Fragment key={`label-${i}`}>
                 <SvgText
                   x={labelPos.x}
-                  y={labelPos.y + 1}
+                  y={hasLine2 ? labelPos.y - 11 : labelPos.y - 4}
                   textAnchor="middle"
                   fontSize="10"
                   fontWeight="700"
                   fill="#1E293B"
                 >
-                  {line2}
+                  {line1}
                 </SvgText>
-              )}
-              <SvgText
-                x={labelPos.x}
-                y={hasLine2 ? labelPos.y + 13 : labelPos.y + 9}
-                textAnchor="middle"
-                fontSize="10"
-                fontWeight="800"
-                fill={scoreColor}
-              >
-                {Math.round(p.score)}%
-              </SvgText>
-            </React.Fragment>
-          );
-        })}
-      </Svg>
+                {hasLine2 && (
+                  <SvgText
+                    x={labelPos.x}
+                    y={labelPos.y + 1}
+                    textAnchor="middle"
+                    fontSize="10"
+                    fontWeight="700"
+                    fill="#1E293B"
+                  >
+                    {line2}
+                  </SvgText>
+                )}
+                <SvgText
+                  x={labelPos.x}
+                  y={hasLine2 ? labelPos.y + 13 : labelPos.y + 9}
+                  textAnchor="middle"
+                  fontSize="10"
+                  fontWeight="800"
+                  fill={scoreColor}
+                >
+                  {Math.round(p.score)}
+                </SvgText>
+              </React.Fragment>
+            );
+          })}
+        </Svg>
+      )}
 
       {/* Legend */}
       <View
@@ -206,9 +229,11 @@ function RadarChart({ data }: { data: Record<string, number> }) {
         }}
       >
         {entries.map(([subject, score]) => {
-          const pct = Number(score);
+          const rawScoresLegend = entries.map(([, s]) => Number(s));
+          const maxScoreLegend = Math.max(...rawScoresLegend, 1);
+          const pct = Number(score) / maxScoreLegend;
           const color =
-            pct >= 70 ? "#22C55E" : pct >= 40 ? "#F59E0B" : "#EF4444";
+            pct >= 0.7 ? "#22C55E" : pct >= 0.4 ? "#F59E0B" : "#EF4444";
           return (
             <View
               key={subject}
@@ -463,6 +488,10 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [avgProgress, setAvgProgress] = useState(0);
   const [quizHistory, setQuizHistory] = useState<QuizRecord[]>([]);
+  const [streak, setStreak] = useState<StreakResult>({
+    current: 0,
+    watchedToday: false,
+  });
   const [skills, setSkills] = useState<Record<string, number> | null>(null);
   const [skillsLoading, setSkillsLoading] = useState(false);
 
@@ -505,6 +534,36 @@ export default function HomeScreen() {
       setSkillsLoading(true);
       const token = await getJwtWithRefresh();
       if (!token) return;
+
+      // อ่าน quiz history ทั้งหมด
+      const allHistory = await getQuizHistory();
+
+      // อ่าน enrolled course IDs จาก AsyncStorage
+      const allKeys = await AsyncStorage.getAllKeys();
+      const enrolledKeys = allKeys.filter((k) => k.startsWith("@enrolled_"));
+      const enrolledEntries = await AsyncStorage.multiGet(enrolledKeys);
+      const enrolledCourseIds = new Set(
+        enrolledEntries
+          .filter(([, v]) => v === "1")
+          .map(([k]) => k.replace("@enrolled_", "")),
+      );
+
+      // กรอง quiz history เฉพาะ course ที่ enrolled
+      const enrolledHistory = allHistory.filter((r) =>
+        enrolledCourseIds.has(r.courseId),
+      );
+
+      // สร้าง body: ส่งข้อมูลผลสอบจาก enrolled courses
+      const quizResults = enrolledHistory.map((r) => ({
+        courseId: r.courseId,
+        courseTitle: r.courseTitle,
+        score: r.score,
+        correct: r.correct,
+        wrong: r.wrong,
+        total: r.total,
+        timestamp: r.timestamp,
+      }));
+
       const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
       const res = await fetch(`${apiBase}/analyze/skills`, {
         method: "POST",
@@ -512,6 +571,7 @@ export default function HomeScreen() {
           "Content-Type": "application/json",
           authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({ quizResults }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -563,6 +623,12 @@ export default function HomeScreen() {
     } catch {
       /* silent */
     }
+    try {
+      const s = await calculateStreak();
+      setStreak(s);
+    } catch {
+      /* silent */
+    }
   }, []);
 
   useFocusEffect(
@@ -608,7 +674,7 @@ export default function HomeScreen() {
       {!isOnline && <OfflineBanner insetTop={insets.top} />}
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 56 }}
+        contentContainerStyle={{ paddingBottom: 80 + insets.bottom + 16 }}
         showsVerticalScrollIndicator={false}
       >
         {/* ── Hero Header ── */}
@@ -817,7 +883,7 @@ export default function HomeScreen() {
               color={Palette.primary}
               track={Palette.primaryBg}
               label="คอร์สที่เรียน"
-              sublabel="progress"
+              sublabel="ความคืบหน้า"
             />
             <View
               style={{
@@ -847,28 +913,45 @@ export default function HomeScreen() {
                   height: 96,
                   alignItems: "center",
                   justifyContent: "center",
+                  borderRadius: 48,
+                  backgroundColor:
+                    streak.current > 0
+                      ? streak.watchedToday
+                        ? "#FF8C0018"
+                        : "#FF8C0010"
+                      : "#F1F5F9",
                 }}
               >
-                <Text style={{ fontSize: 26 }}>🔥</Text>
+                <Text style={{ fontSize: 26 }}>
+                  {streak.current === 0
+                    ? "❄️"
+                    : streak.watchedToday
+                      ? "🔥"
+                      : "🔥"}
+                </Text>
                 <Text
                   style={{
                     fontSize: 22,
                     fontWeight: "900",
-                    color: Palette.accent,
+                    color: streak.current > 0 ? "#FF8C00" : "#94A3B8",
                   }}
                 >
-                  {quizHistory.length}
+                  {streak.current}
                 </Text>
               </View>
               <Text
                 style={{
                   fontSize: 11,
                   fontWeight: "700",
-                  color: "#334155",
+                  color: streak.current > 0 ? "#FF8C00" : "#94A3B8",
                   textAlign: "center",
                 }}
               >
-                ครั้งที่สอบ
+                {streak.current === 0
+                  ? "เริ่ม streak!"
+                  : streak.watchedToday
+                    ? `${streak.current} วันติดต่อกัน`
+                    : `${streak.current} วัน (ดูวันนี้ด้วย!)`}
               </Text>
             </View>
           </View>

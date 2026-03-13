@@ -15,7 +15,7 @@
       "package": "com.sandboxedu.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
-        "backgroundColor": "#1E4DB7"
+        "backgroundColor": "#1A458B"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
