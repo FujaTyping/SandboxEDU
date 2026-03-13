@@ -1,44 +1,68 @@
 import { Palette } from "@/constants/theme";
 import { getJwtWithRefresh } from "@/lib/auth/jwtRefresh";
 import {
-  deleteCourse,
-  downloadCourse,
-  getLocalCourseUri,
-  isCourseDownloaded,
+    deleteCourse,
+    downloadCourse,
+    getLocalCourseUri,
+    isCourseDownloaded,
 } from "@/lib/offline/downloadManager";
 import { saveQuizRecord } from "@/lib/progress/quizHistory";
 import {
-  clearVideoProgress,
-  formatProgress,
-  formatTime,
-  getVideoProgress,
-  saveVideoProgress,
+    clearVideoProgress,
+    formatProgress,
+    formatTime,
+    getVideoProgress,
+    saveVideoProgress,
 } from "@/lib/progress/videoProgress";
 import { Image } from "expo-image";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { useVideoPlayer, VideoView } from "expo-video";
 import {
-  ArrowLeft,
-  Check,
-  CheckCircle,
-  ClipboardList,
-  Play,
-  Sparkles,
-  Zap,
+    ArrowLeft,
+    Check,
+    CheckCircle,
+    ClipboardList,
+    Play,
+    Zap,
 } from "lucide-react-native";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Platform,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Platform,
+    ScrollView,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
+import Markdown from "react-native-markdown-display";
 import MathJaxView from "react-native-mathjax";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Circle, Path } from "react-native-svg";
+
+function SparklesIcon({
+  size = 24,
+  color = "currentColor",
+}: {
+  size?: number;
+  color?: string;
+}) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path d="M20 2v4" stroke={color} strokeWidth="2" strokeLinecap="round" />
+      <Path d="M22 4h-4" stroke={color} strokeWidth="2" strokeLinecap="round" />
+      <Circle cx="4" cy="20" r="2" stroke={color} strokeWidth="2" />
+    </Svg>
+  );
+}
 
 interface CourseDetail {
   id: string;
@@ -2107,7 +2131,7 @@ export default function VideoScreen() {
                         {summaryLoading ? (
                           <ActivityIndicator size="small" color="#8B5CF6" />
                         ) : (
-                          <Sparkles size={22} color="#8B5CF6" strokeWidth={2} />
+                          <SparklesIcon size={22} color="#8B5CF6" />
                         )}
                       </View>
                       <View style={{ flex: 1 }}>
@@ -2148,7 +2172,7 @@ export default function VideoScreen() {
                             gap: 6,
                           }}
                         >
-                          <Sparkles size={14} color="#fff" strokeWidth={2.5} />
+                          <SparklesIcon size={14} color="#fff" />
                           <Text
                             style={{
                               color: "#fff",
@@ -2172,15 +2196,49 @@ export default function VideoScreen() {
                         borderTopColor: "#F1F5F9",
                       }}
                     >
-                      <Text
+                      <Markdown
                         style={{
-                          fontSize: 14,
-                          color: "#334155",
-                          lineHeight: 22,
+                          body: {
+                            fontSize: 14,
+                            color: "#334155",
+                            lineHeight: 22,
+                          },
+                          heading1: {
+                            fontSize: 17,
+                            fontWeight: "800",
+                            color: "#111",
+                            marginBottom: 4,
+                          },
+                          heading2: {
+                            fontSize: 15,
+                            fontWeight: "700",
+                            color: "#1E293B",
+                            marginBottom: 4,
+                          },
+                          heading3: {
+                            fontSize: 14,
+                            fontWeight: "700",
+                            color: "#1E293B",
+                          },
+                          bullet_list: { marginLeft: 4 },
+                          ordered_list: { marginLeft: 4 },
+                          strong: { fontWeight: "800", color: "#111" },
+                          code_inline: {
+                            backgroundColor: "#F1F5F9",
+                            color: "#7C3AED",
+                            borderRadius: 4,
+                            paddingHorizontal: 4,
+                            fontSize: 12,
+                          },
+                          fence: {
+                            backgroundColor: "#F8FAFC",
+                            borderRadius: 8,
+                            padding: 10,
+                          },
                         }}
                       >
-                        {summary}
-                      </Text>
+                        {summary ?? ""}
+                      </Markdown>
                       <TouchableOpacity
                         onPress={handleSummarize}
                         disabled={summaryLoading}
