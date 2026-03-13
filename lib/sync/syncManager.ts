@@ -22,6 +22,7 @@ export interface SyncPayload {
     id: string;
     courseId: string;
     courseTitle: string;
+    subject?: string;
     correct: number;
     wrong: number;
     total: number;
@@ -132,6 +133,7 @@ async function mergeRemoteData(remote: SyncPayload): Promise<void> {
       await saveQuizRecord({
         courseId: record.courseId,
         courseTitle: record.courseTitle,
+        subject: record.subject,
         correct: record.correct,
         wrong: record.wrong,
         total: record.total,

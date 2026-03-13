@@ -6,6 +6,7 @@ export interface QuizRecord {
   id: string;
   courseId: string;
   courseTitle: string;
+  subject?: string;
   correct: number;
   wrong: number;
   total: number;

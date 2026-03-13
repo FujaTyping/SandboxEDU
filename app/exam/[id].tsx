@@ -53,12 +53,14 @@ async function getToken(): Promise<string | null> {
 export default function ExamScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { id, quizData, courseTitle, difficulty } = useLocalSearchParams<{
-    id: string;
-    quizData?: string;
-    courseTitle?: string;
-    difficulty?: string;
-  }>();
+  const { id, quizData, courseTitle, subject, difficulty } =
+    useLocalSearchParams<{
+      id: string;
+      quizData?: string;
+      courseTitle?: string;
+      subject?: string;
+      difficulty?: string;
+    }>();
   const gradientId = useMemo(() => `examGrad-${Date.now()}`, []);
 
   const questions: QuizQuestion[] = useMemo(() => {
@@ -163,6 +165,7 @@ export default function ExamScreen() {
       await saveQuizRecord({
         courseId: id ?? "unknown",
         courseTitle: displayTitle,
+        subject: subject ?? undefined,
         correct: score,
         wrong,
         total: questions.length,

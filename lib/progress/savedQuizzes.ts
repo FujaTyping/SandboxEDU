@@ -29,7 +29,10 @@ export async function saveQuizData(
       questions,
       savedAt: Date.now(),
     };
-    await AsyncStorage.setItem(quizKey(courseId, difficulty), JSON.stringify(record));
+    await AsyncStorage.setItem(
+      quizKey(courseId, difficulty),
+      JSON.stringify(record),
+    );
   } catch (e) {
     console.warn("[SavedQuizzes] Failed to save:", e);
   }
@@ -53,7 +56,11 @@ export async function loadSavedQuiz(
 export async function getAvailableSavedDifficulties(
   courseId: string,
 ): Promise<Array<"easy" | "medium" | "hard">> {
-  const difficulties: Array<"easy" | "medium" | "hard"> = ["easy", "medium", "hard"];
+  const difficulties: Array<"easy" | "medium" | "hard"> = [
+    "easy",
+    "medium",
+    "hard",
+  ];
   const available: Array<"easy" | "medium" | "hard"> = [];
   await Promise.all(
     difficulties.map(async (d) => {

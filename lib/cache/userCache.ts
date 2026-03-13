@@ -7,12 +7,14 @@ export interface CachedUser {
   surname?: string;
   displayName?: string;
   avatarURL?: string;
-  sclass?: number;
+  class?: number;
   room?: number;
   cachedAt: number;
 }
 
-export async function saveUserCache(user: Omit<CachedUser, "cachedAt">): Promise<void> {
+export async function saveUserCache(
+  user: Omit<CachedUser, "cachedAt">,
+): Promise<void> {
   try {
     const data: CachedUser = { ...user, cachedAt: Date.now() };
     await AsyncStorage.setItem(USER_CACHE_KEY, JSON.stringify(data));
