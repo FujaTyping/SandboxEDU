@@ -350,14 +350,10 @@ function CoursePlayer({
   const handleDone = async () => {
     setCompleting(true);
     try {
-      // Save final progress as 100%
-      if (player) {
-        await saveVideoProgress(course.id, player.duration, player.duration);
-      }
-
       const token = await getToken();
       if (!token) {
         Alert.alert("กรุณาเข้าสู่ระบบก่อน");
+        setCompleting(false);
         return;
       }
       const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -374,12 +370,10 @@ function CoursePlayer({
         throw new Error((err as any).message ?? `HTTP ${res.status}`);
       }
 
-      // Keep progress at 100% so home screen shows full completion
-      await saveVideoProgress(
-        course.id,
-        player.duration || 1,
-        player.duration || 1,
-      );
+      // Lock progress at exactly 100% regardless of player state
+      const dur =
+        isFinite(player.duration) && player.duration > 0 ? player.duration : 1;
+      await saveVideoProgress(course.id, dur, dur);
 
       Alert.alert("ยินดีด้วย! 🎉", "คุณเรียนจบคอร์สนี้แล้ว", [
         { text: "ตกลง", onPress: onDone },
@@ -824,6 +818,7 @@ function QuizScreen({
           await saveQuizRecord({
             courseId: course.id,
             courseTitle: course.title,
+            subject: course.subject,
             correct,
             wrong,
             total: newAnswers.length,
@@ -1855,7 +1850,7 @@ export default function VideoScreen() {
                           style={{ marginLeft: 3 }}
                         />
                       </View>
-                      {watchProgress > 0 && watchProgress < 100 && (
+                      {watchProgress > 0 && (
                         <View
                           style={{
                             position: "absolute",
@@ -1866,13 +1861,15 @@ export default function VideoScreen() {
                         >
                           <Text
                             style={{
-                              color: "#fff",
+                              color: watchProgress >= 100 ? "#4ADE80" : "#fff",
                               fontSize: 12,
-                              fontWeight: "600",
+                              fontWeight: "700",
                               marginBottom: 4,
                             }}
                           >
-                            ดูต่อ - {Math.round(watchProgress)}%
+                            {watchProgress >= 100
+                              ? "✓ เรียนจบแล้ว"
+                              : `ดูต่อ - ${Math.round(watchProgress)}%`}
                           </Text>
                           <View
                             style={{
@@ -1884,8 +1881,9 @@ export default function VideoScreen() {
                             <View
                               style={{
                                 height: 4,
-                                width: `${watchProgress}%`,
-                                backgroundColor: "#fff",
+                                width: `${Math.min(watchProgress, 100)}%`,
+                                backgroundColor:
+                                  watchProgress >= 100 ? "#4ADE80" : "#fff",
                                 borderRadius: 2,
                               }}
                             />

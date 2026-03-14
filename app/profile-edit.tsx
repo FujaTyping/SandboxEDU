@@ -24,7 +24,7 @@ interface ApiUser {
   surname?: string;
   displayName?: string;
   avatarURL?: string;
-  sclass?: number;
+  class?: number;
   room?: number;
 }
 
@@ -33,7 +33,7 @@ type EditField =
   | "surname"
   | "displayName"
   | "avatarURL"
-  | "sclass"
+  | "class"
   | "room";
 
 interface FieldConfig {
@@ -61,7 +61,7 @@ const FIELDS: FieldConfig[] = [
     icon: "🖼️",
   },
   {
-    key: "sclass",
+    key: "class",
     label: "ระดับชั้น (1-6)",
     placeholder: "5",
     keyboardType: "number-pad",
@@ -109,7 +109,9 @@ export default function ProfileEditScreen() {
   }, [fetchUser]);
 
   function startEdit(field: EditField) {
-    setEditValue(user ? String(user[field] ?? "") : "");
+    setEditValue(
+      user ? String((user as Record<string, unknown>)[field] ?? "") : "",
+    );
     setEditingField(field);
   }
 
@@ -126,7 +128,7 @@ export default function ProfileEditScreen() {
       return;
     }
     if (
-      editingField === "sclass" &&
+      editingField === "class" &&
       (isNaN(Number(val)) || Number(val) < 1 || Number(val) > 6)
     ) {
       Alert.alert("ระดับชั้นไม่ถูกต้อง", "กรอก 1-6");
@@ -150,8 +152,14 @@ export default function ProfileEditScreen() {
         body: JSON.stringify({ value: val }),
       });
       if (!res.ok) {
-        const errBody = await res.json().catch(() => ({}));
-        throw new Error((errBody as any).message ?? `HTTP ${res.status}`);
+        const errText = await res.text().catch(() => "");
+        let errMsg = `HTTP ${res.status}`;
+        try {
+          errMsg = ((JSON.parse(errText) as any).message ?? errText) || errMsg;
+        } catch {
+          errMsg = errText || errMsg;
+        }
+        throw new Error(errMsg);
       }
       await fetchUser();
       setEditingField(null);
@@ -168,7 +176,7 @@ export default function ProfileEditScreen() {
 
   const avatarUrl = user?.avatarURL || DEFAULT_AVATAR;
   const displayName = user?.displayName ?? user?.name ?? "ผู้ใช้";
-  const gradeText = user?.sclass ? `ม.${user.sclass}` : null;
+  const gradeText = user?.class ? `ม.${user.class}` : null;
   const roomText = user?.room ? `ห้อง ${user.room}` : null;
 
   return (
@@ -290,7 +298,9 @@ export default function ProfileEditScreen() {
         >
           {FIELDS.map((field, index) => {
             const isEditing = editingField === field.key;
-            const currentVal = user ? String(user[field.key] ?? "") : "";
+            const currentVal = user
+              ? String((user as Record<string, unknown>)[field.key] ?? "")
+              : "";
             return (
               <View key={field.key}>
                 {index > 0 && (

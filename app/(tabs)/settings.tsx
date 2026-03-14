@@ -1,6 +1,10 @@
 import { usePalette } from "@/hooks/use-palette";
 import { getJwtWithRefresh } from "@/lib/auth/jwtRefresh";
 import { clearJwt } from "@/lib/auth/token";
+import {
+    clearCurrentUserId,
+    syncThenClearPrivate,
+} from "@/lib/auth/userSession";
 import { getUserCache, saveUserCache } from "@/lib/cache/userCache";
 import { supabase } from "@/lib/supabase";
 import {
@@ -35,7 +39,7 @@ interface ApiUser {
   surname?: string;
   displayName?: string;
   avatarURL?: string;
-  sclass?: number;
+  class?: number;
   room?: number;
 }
 
@@ -46,6 +50,7 @@ export default function SettingsScreen() {
   const [user, setUser] = useState<ApiUser | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [lastSyncTime, setSyncTime] = useState<number | null>(null);
 
   const fetchUser = useCallback(async () => {
@@ -126,7 +131,7 @@ export default function SettingsScreen() {
 
   const avatarUrl = user?.avatarURL || DEFAULT_AVATAR;
   const displayName = user?.displayName ?? user?.name ?? "ผู้ใช้";
-  const gradeText = user?.sclass ? `ม.${user.sclass}` : null;
+  const gradeText = user?.class ? `ม.${user.class}` : null;
   const roomText = user?.room ? `ห้อง ${user.room}` : null;
 
   const shadow = Platform.select({
@@ -210,6 +215,20 @@ export default function SettingsScreen() {
             {[gradeText, roomText].filter(Boolean).join(" · ") || "ไม่มีข้อมูล"}
           </Text>
         </View>
+        <TouchableOpacity
+          onPress={() => router.push("/profile-edit")}
+          activeOpacity={0.8}
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: Palette.primary,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Pencil size={18} color="#fff" strokeWidth={2.5} />
+        </TouchableOpacity>
       </View>
 
       {/* ── Menu Items ── */}
@@ -225,53 +244,6 @@ export default function SettingsScreen() {
           },
         ]}
       >
-        {/* Edit Profile */}
-        <TouchableOpacity
-          onPress={() => router.push("/profile-edit")}
-          activeOpacity={0.7}
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            paddingHorizontal: 18,
-            paddingVertical: 16,
-            gap: 14,
-          }}
-        >
-          <View
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: 10,
-              backgroundColor: Palette.primary + "15",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Pencil size={18} color={Palette.primary} strokeWidth={2} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text
-              style={{ fontSize: 15, fontWeight: "600", color: Palette.text }}
-            >
-              แก้ไขโปรไฟล์
-            </Text>
-            <Text
-              style={{ fontSize: 12, color: Palette.textMuted, marginTop: 1 }}
-            >
-              ชื่อ, รูปโปรไฟล์, ระดับชั้น
-            </Text>
-          </View>
-          <ChevronRight size={16} color={Palette.disabled} strokeWidth={2} />
-        </TouchableOpacity>
-
-        <View
-          style={{
-            height: 1,
-            backgroundColor: Palette.borderLight,
-            marginHorizontal: 18,
-          }}
-        />
-
         {/* Sync */}
         <TouchableOpacity
           onPress={handleSync}
@@ -369,6 +341,29 @@ export default function SettingsScreen() {
 
       {/* ── Logout ── */}
       <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={() =>
+          Alert.alert("ออกจากระบบ", "ต้องการออกจากระบบหรือไม่?", [
+            { text: "ยกเลิก", style: "cancel" },
+            {
+              text: "ออกจากระบบ",
+              style: "destructive",
+              onPress: async () => {
+                setLoggingOut(true);
+                try {
+                  await syncThenClearPrivate();
+                  await clearCurrentUserId();
+                  await clearJwt();
+                  await supabase.auth.signOut();
+                } finally {
+                  setLoggingOut(false);
+                }
+                router.replace("/login");
+              },
+            },
+          ])
+        }
+        disabled={loggingOut}
         style={{
           marginHorizontal: 20,
           backgroundColor: Palette.dangerLight,
@@ -380,28 +375,18 @@ export default function SettingsScreen() {
           gap: 8,
           borderWidth: 1,
           borderColor: Palette.dangerBorder,
+          opacity: loggingOut ? 0.6 : 1,
         }}
-        activeOpacity={0.8}
-        onPress={() =>
-          Alert.alert("ออกจากระบบ", "ต้องการออกจากระบบหรือไม่?", [
-            { text: "ยกเลิก", style: "cancel" },
-            {
-              text: "ออกจากระบบ",
-              style: "destructive",
-              onPress: async () => {
-                await clearJwt();
-                await supabase.auth.signOut();
-                router.replace("/login");
-              },
-            },
-          ])
-        }
       >
-        <LogOut size={18} color={Palette.danger} strokeWidth={2} />
+        {loggingOut ? (
+          <ActivityIndicator size="small" color={Palette.danger} />
+        ) : (
+          <LogOut size={18} color={Palette.danger} strokeWidth={2} />
+        )}
         <Text
           style={{ fontSize: 16, fontWeight: "700", color: Palette.danger }}
         >
-          ออกจากระบบ
+          {loggingOut ? "กำลังออกจากระบบ..." : "ออกจากระบบ"}
         </Text>
       </TouchableOpacity>
 

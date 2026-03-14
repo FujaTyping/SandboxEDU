@@ -150,12 +150,12 @@ function CourseCard({
                 <Text
                   style={{
                     fontSize: 10,
-                    color: watchPct >= 90 ? "#22C55E" : color,
+                    color: watchPct >= 100 ? "#22C55E" : color,
                     fontWeight: "700",
                   }}
                 >
-                  {watchPct >= 90
-                    ? "✓ ดูจบแล้ว"
+                  {watchPct >= 100
+                    ? "✓ เรียนจบแล้ว"
                     : `ดูไปแล้ว ${Math.round(watchPct)}%`}
                 </Text>
               </View>
@@ -170,7 +170,7 @@ function CourseCard({
                   style={{
                     height: 4,
                     borderRadius: 2,
-                    backgroundColor: watchPct >= 90 ? "#22C55E" : color,
+                    backgroundColor: watchPct >= 100 ? "#22C55E" : color,
                     width: `${Math.min(watchPct, 100)}%`,
                   }}
                 />

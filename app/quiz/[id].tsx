@@ -2,29 +2,29 @@ import { Palette } from "@/constants/theme";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import { getJwtWithRefresh } from "@/lib/auth/jwtRefresh";
 import {
-  getAvailableSavedDifficulties,
-  loadSavedQuiz,
-  saveQuizData,
+    getAvailableSavedDifficulties,
+    loadSavedQuiz,
+    saveQuizData,
 } from "@/lib/progress/savedQuizzes";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import {
-  ArrowLeft,
-  BookOpen,
-  CheckCircle,
-  ClipboardList,
-  Lock as LockIcon,
-  WifiOff,
-  Zap,
+    ArrowLeft,
+    BookOpen,
+    CheckCircle,
+    ClipboardList,
+    Lock as LockIcon,
+    WifiOff,
+    Zap,
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Platform,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Platform,
+    ScrollView,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -120,6 +120,7 @@ export default function QuizDetailScreen() {
           id,
           quizData: JSON.stringify(data),
           courseTitle: courseTitle ?? "แบบทดสอบ",
+          subject: subject ?? "",
           difficulty,
         },
       } as any);
@@ -148,6 +149,7 @@ export default function QuizDetailScreen() {
           id,
           quizData: JSON.stringify(saved.questions),
           courseTitle: courseTitle ?? "แบบทดสอบ",
+          subject: subject ?? "",
           difficulty,
         },
       } as any);
