@@ -22,12 +22,14 @@ export interface SyncPayload {
     id: string;
     courseId: string;
     courseTitle: string;
+    subject?: string;
     correct: number;
     wrong: number;
     total: number;
     score: number;
     timestamp: number;
   }>;
+  enrolledCourseIds: string[];
   syncedAt: number;
 }
 
@@ -44,16 +46,32 @@ async function setLastSyncTime(ts: number): Promise<void> {
   await AsyncStorage.setItem(LAST_SYNC_KEY, String(ts));
 }
 
+/** Read all enrolled course IDs from AsyncStorage */
+async function getEnrolledCourseIds(): Promise<string[]> {
+  try {
+    const allKeys = await AsyncStorage.getAllKeys();
+    const enrolledKeys = allKeys.filter((k) => k.startsWith("@enrolled_"));
+    const entries = await AsyncStorage.multiGet(enrolledKeys);
+    return entries
+      .filter(([, v]) => v === "1")
+      .map(([k]) => k.replace("@enrolled_", ""));
+  } catch {
+    return [];
+  }
+}
+
 /** Upload local data → server */
 export async function uploadSync(token: string): Promise<void> {
   const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
 
   const videoProgress = await getAllVideoProgress();
   const quizHistory = await getQuizHistory();
+  const enrolledCourseIds = await getEnrolledCourseIds();
 
   const payload: SyncPayload = {
     videoProgress,
     quizHistory,
+    enrolledCourseIds,
     syncedAt: Date.now(),
   };
 
@@ -98,8 +116,8 @@ export async function downloadSync(token: string): Promise<SyncPayload | null> {
 
 /** Merge remote data into local (remote wins if newer) */
 async function mergeRemoteData(remote: SyncPayload): Promise<void> {
+  // Merge video progress
   const localProgress = await getAllVideoProgress();
-
   for (const [courseId, remoteP] of Object.entries(remote.videoProgress)) {
     const localP = localProgress[courseId];
     if (!localP || remoteP.lastUpdated > localP.lastUpdated) {
@@ -107,20 +125,30 @@ async function mergeRemoteData(remote: SyncPayload): Promise<void> {
     }
   }
 
+  // Merge quiz history
   const localHistory = await getQuizHistory();
   const localIds = new Set(localHistory.map((r) => r.id));
-
   for (const record of remote.quizHistory) {
     if (!localIds.has(record.id)) {
       await saveQuizRecord({
         courseId: record.courseId,
         courseTitle: record.courseTitle,
+        subject: record.subject,
         correct: record.correct,
         wrong: record.wrong,
         total: record.total,
         timestamp: record.timestamp,
       });
     }
+  }
+
+  // Merge enrolled course IDs
+  if (Array.isArray(remote.enrolledCourseIds)) {
+    await Promise.all(
+      remote.enrolledCourseIds.map((id) =>
+        AsyncStorage.setItem(`@enrolled_${id}`, "1"),
+      ),
+    );
   }
 }
 

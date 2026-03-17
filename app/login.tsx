@@ -1,5 +1,6 @@
 import { usePalette } from "@/hooks/use-palette";
 import { saveJwtWithExpiry } from "@/lib/auth/jwtRefresh";
+import { handleUserLogin } from "@/lib/auth/userSession";
 import { saveUserCache } from "@/lib/cache/userCache";
 import { supabase } from "@/lib/supabase";
 import { Image } from "expo-image";
@@ -147,6 +148,10 @@ export default function LoginScreen() {
         }
 
         await saveJwtWithExpiry(jwt);
+
+        // ตรวจสอบว่า user เปลี่ยนหรือไม่ แล้ว clear data ถ้าใช่
+        const userId = session.user.id;
+        await handleUserLogin(userId);
 
         // ดึงข้อมูล user profile ด้วย custom JWT แล้ว cache
         try {

@@ -11,35 +11,35 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
 import { useFocusEffect, useRouter } from "expo-router";
 import {
-    BookOpen,
-    ChevronRight,
-    GraduationCap,
-    Pencil,
-    RefreshCw,
+  BookOpen,
+  ChevronRight,
+  GraduationCap,
+  Pencil,
+  RefreshCw,
 } from "lucide-react-native";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    Platform,
-    ScrollView,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Platform,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, {
-    Circle,
-    Defs,
-    Line,
-    LinearGradient,
-    Path,
-    Polygon,
-    Polyline,
-    Rect,
-    Stop,
-    Text as SvgText,
+  Circle,
+  Defs,
+  Line,
+  LinearGradient,
+  Path,
+  Polygon,
+  Polyline,
+  Rect,
+  Stop,
+  Text as SvgText,
 } from "react-native-svg";
 
 const DEFAULT_AVATAR = "https://i.pravatar.cc/512";
@@ -265,7 +265,7 @@ interface ApiUser {
   surname?: string;
   displayName?: string;
   avatarURL?: string;
-  sclass?: number;
+  class?: number;
   room?: number;
 }
 
@@ -556,7 +556,7 @@ export default function HomeScreen() {
       // สร้าง body: ส่งข้อมูลผลสอบจาก enrolled courses
       const quizResults = enrolledHistory.map((r) => ({
         courseId: r.courseId,
-        courseTitle: r.courseTitle,
+        courseTitle: r.subject ?? r.courseTitle,
         score: r.score,
         correct: r.correct,
         wrong: r.wrong,
@@ -608,11 +608,26 @@ export default function HomeScreen() {
   const fetchStats = useCallback(async () => {
     try {
       const allProgress = await getAllVideoProgress();
-      const values = Object.values(allProgress).map((p) => p.percentage);
-      const avg =
-        values.length > 0
-          ? values.reduce((a, b) => a + b, 0) / values.length
-          : 0;
+      const allKeys = await AsyncStorage.getAllKeys();
+      const enrolledIds = new Set(
+        (
+          await AsyncStorage.multiGet(
+            allKeys.filter((k) => k.startsWith("@enrolled_")),
+          )
+        )
+          .filter(([, v]) => v === "1")
+          .map(([k]) => k.replace("@enrolled_", "")),
+      );
+      const progressById: Record<string, number> = {};
+      for (const p of Object.values(allProgress)) {
+        progressById[p.courseId] = p.percentage;
+      }
+      const total = enrolledIds.size;
+      const sum = Array.from(enrolledIds).reduce(
+        (acc, id) => acc + (progressById[id] ?? 0),
+        0,
+      );
+      const avg = total > 0 ? sum / total : 0;
       setAvgProgress(Math.min(100, avg));
     } catch {
       /* silent */
@@ -639,7 +654,7 @@ export default function HomeScreen() {
   );
 
   const displayName = user?.displayName ?? user?.name ?? "ผู้ใช้";
-  const gradeText = user?.sclass ? `ม.${user.sclass}` : "";
+  const gradeText = user?.class ? `ม.${user.class}` : "";
   const roomText = user?.room ? `ห้อง ${user.room}` : "";
   const avgQuizScore =
     quizHistory.length > 0
@@ -715,15 +730,24 @@ export default function HomeScreen() {
                 marginBottom: 20,
               }}
             >
-              <Text
+              <View
                 style={{
-                  fontSize: 13,
-                  color: "rgba(255,255,255,0.8)",
-                  fontWeight: "600",
+                  backgroundColor: "rgba(255,255,255,0.15)",
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  borderRadius: 16,
                 }}
               >
-                {getGreeting()}
-              </Text>
+                <Text
+                  style={{
+                    fontSize: 15,
+                    color: "rgba(255,255,255,0.95)",
+                    fontWeight: "600",
+                  }}
+                >
+                  {getGreeting()}
+                </Text>
+              </View>
               <TouchableOpacity
                 onPress={() => {
                   fetchUser();
@@ -743,34 +767,55 @@ export default function HomeScreen() {
             <View
               style={{ flexDirection: "row", alignItems: "center", gap: 14 }}
             >
-              <View
-                style={{
-                  width: 68,
-                  height: 68,
-                  borderRadius: 34,
-                  borderWidth: 3,
-                  borderColor: "rgba(255,255,255,0.9)",
-                  backgroundColor: Palette.primaryBg,
-                  overflow: "hidden",
-                }}
-              >
-                {loading ? (
-                  <View
-                    style={{
-                      flex: 1,
-                      justifyContent: "center",
-                      alignItems: "center",
-                    }}
-                  >
-                    <ActivityIndicator color={Palette.primary} size="small" />
-                  </View>
-                ) : (
-                  <Image
-                    source={{ uri: user?.avatarURL || DEFAULT_AVATAR }}
-                    style={{ width: 68, height: 68 }}
-                    contentFit="cover"
-                  />
-                )}
+              <View style={{ position: "relative" }}>
+                <View
+                  style={{
+                    width: 88,
+                    height: 88,
+                    borderRadius: 44,
+                    borderWidth: 3,
+                    borderColor: "rgba(255,255,255,0.9)",
+                    backgroundColor: Palette.primaryBg,
+                    overflow: "hidden",
+                  }}
+                >
+                  {loading ? (
+                    <View
+                      style={{
+                        flex: 1,
+                        justifyContent: "center",
+                        alignItems: "center",
+                      }}
+                    >
+                      <ActivityIndicator color={Palette.primary} size="small" />
+                    </View>
+                  ) : (
+                    <Image
+                      source={{ uri: user?.avatarURL || DEFAULT_AVATAR }}
+                      style={{ width: 88, height: 88 }}
+                      contentFit="cover"
+                    />
+                  )}
+                </View>
+                <TouchableOpacity
+                  onPress={() => router.push("/profile-edit")}
+                  activeOpacity={0.8}
+                  style={{
+                    position: "absolute",
+                    bottom: -4,
+                    right: -4,
+                    width: 28,
+                    height: 28,
+                    borderRadius: 18,
+                    backgroundColor: "rgba(0,0,0,0.4)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderWidth: 3,
+                    borderColor: "rgba(255,255,255,0.8)",
+                  }}
+                >
+                  <Pencil size={16} color="#fff" strokeWidth={2.5} />
+                </TouchableOpacity>
               </View>
               <View style={{ flex: 1 }}>
                 <Text
@@ -838,28 +883,7 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            <TouchableOpacity
-              onPress={() => router.push("/profile-edit")}
-              style={{
-                marginTop: 16,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 6,
-                alignSelf: "flex-start",
-                backgroundColor: "rgba(255,255,255,0.18)",
-                borderRadius: 20,
-                paddingHorizontal: 14,
-                paddingVertical: 7,
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.35)",
-              }}
-              activeOpacity={0.75}
-            >
-              <Pencil size={12} color="#fff" strokeWidth={2.5} />
-              <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff" }}>
-                แก้ไขโปรไฟล์
-              </Text>
-            </TouchableOpacity>
+
           </View>
         </View>
 

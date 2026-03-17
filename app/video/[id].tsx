@@ -8,7 +8,6 @@ import {
 } from "@/lib/offline/downloadManager";
 import { saveQuizRecord } from "@/lib/progress/quizHistory";
 import {
-    clearVideoProgress,
     formatProgress,
     formatTime,
     getVideoProgress,
@@ -250,6 +249,14 @@ function CoursePlayer({
     return () => {
       isMounted.current = false;
       if (resumeTimer.current) clearTimeout(resumeTimer.current);
+      // Save progress immediately before unmount
+      try {
+        const ct = player.currentTime ?? 0;
+        const dur = player.duration ?? 0;
+        if (isFinite(dur) && dur > 0 && ct > 0) {
+          saveVideoProgress(course.id, ct, dur);
+        }
+      } catch (e) {}
       // Restore portrait on unmount
       ScreenOrientation.lockAsync(
         ScreenOrientation.OrientationLock.PORTRAIT_UP,
@@ -343,14 +350,10 @@ function CoursePlayer({
   const handleDone = async () => {
     setCompleting(true);
     try {
-      // Save final progress as 100%
-      if (player) {
-        await saveVideoProgress(course.id, player.duration, player.duration);
-      }
-
       const token = await getToken();
       if (!token) {
         Alert.alert("กรุณาเข้าสู่ระบบก่อน");
+        setCompleting(false);
         return;
       }
       const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -367,8 +370,10 @@ function CoursePlayer({
         throw new Error((err as any).message ?? `HTTP ${res.status}`);
       }
 
-      // Clear progress after completion
-      await clearVideoProgress(course.id);
+      // Lock progress at exactly 100% regardless of player state
+      const dur =
+        isFinite(player.duration) && player.duration > 0 ? player.duration : 1;
+      await saveVideoProgress(course.id, dur, dur);
 
       Alert.alert("ยินดีด้วย! 🎉", "คุณเรียนจบคอร์สนี้แล้ว", [
         { text: "ตกลง", onPress: onDone },
@@ -739,6 +744,7 @@ function QuizScreen({
       const token = await getToken();
       if (!token) {
         setError("กรุณาเข้าสู่ระบบก่อน");
+        setStarting(false);
         return;
       }
       const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -812,6 +818,7 @@ function QuizScreen({
           await saveQuizRecord({
             courseId: course.id,
             courseTitle: course.title,
+            subject: course.subject,
             correct,
             wrong,
             total: newAnswers.length,
@@ -1676,6 +1683,8 @@ export default function VideoScreen() {
 
   // Refresh watchProgress when returning from player
   const handlePlayerBack = async () => {
+    // Short delay to allow CoursePlayer's unmount-save to finish first
+    await new Promise((r) => setTimeout(r, 300));
     const progress = await getVideoProgress(id);
     if (progress) setWatchProgress(progress.percentage);
     setPhase("preview");
@@ -1841,7 +1850,7 @@ export default function VideoScreen() {
                           style={{ marginLeft: 3 }}
                         />
                       </View>
-                      {watchProgress > 0 && watchProgress < 100 && (
+                      {watchProgress > 0 && (
                         <View
                           style={{
                             position: "absolute",
@@ -1852,13 +1861,15 @@ export default function VideoScreen() {
                         >
                           <Text
                             style={{
-                              color: "#fff",
+                              color: watchProgress >= 100 ? "#4ADE80" : "#fff",
                               fontSize: 12,
-                              fontWeight: "600",
+                              fontWeight: "700",
                               marginBottom: 4,
                             }}
                           >
-                            ดูต่อ - {Math.round(watchProgress)}%
+                            {watchProgress >= 100
+                              ? "✓ เรียนจบแล้ว"
+                              : `ดูต่อ - ${Math.round(watchProgress)}%`}
                           </Text>
                           <View
                             style={{
@@ -1870,8 +1881,9 @@ export default function VideoScreen() {
                             <View
                               style={{
                                 height: 4,
-                                width: `${watchProgress}%`,
-                                backgroundColor: "#fff",
+                                width: `${Math.min(watchProgress, 100)}%`,
+                                backgroundColor:
+                                  watchProgress >= 100 ? "#4ADE80" : "#fff",
                                 borderRadius: 2,
                               }}
                             />
